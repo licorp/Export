@@ -385,23 +385,71 @@ Tiếp tục xuất file?";
                 
                 try
                 {
-                    // Start export process with document parameter
-                    var exportManager = new BatchExportManager(_document);
-                    
                     // Update status
                     if (StatusLabel != null)
                     {
                         StatusLabel.Text = "Exporting...";
                     }
+
+                    bool exportSuccess = false;
+                    int totalExported = 0;
+
+                    // Convert SheetItem to ViewSheet for export
+                    var sheetsToExport = new List<ViewSheet>();
+                    foreach (var sheetItem in selectedSheets)
+                    {
+                        // Find the actual ViewSheet from document
+                        var collector = new FilteredElementCollector(_document);
+                        var sheet = collector.OfClass(typeof(ViewSheet))
+                                           .Cast<ViewSheet>()
+                                           .FirstOrDefault(s => s.SheetNumber == sheetItem.Number);
+                        if (sheet != null)
+                        {
+                            sheetsToExport.Add(sheet);
+                        }
+                    }
+
+                    WriteDebugLog($"[Export +] Found {sheetsToExport.Count} ViewSheets for export");
+
+                    // Export to different formats
+                    foreach (var format in selectedFormats)
+                    {
+                        WriteDebugLog($"[Export +] Starting export to {format}");
+                        
+                        if (format.ToUpper() == "PDF")
+                        {
+                            var pdfManager = new PDFExportManager(_document);
+                            bool pdfResult = pdfManager.ExportSheetsToPDF(sheetsToExport, outputPath, ExportSettings);
+                            if (pdfResult)
+                            {
+                                totalExported += sheetsToExport.Count;
+                                exportSuccess = true;
+                                WriteDebugLog($"[Export +] PDF export completed successfully");
+                            }
+                        }
+                        else
+                        {
+                            WriteDebugLog($"[Export +] Format {format} not yet implemented");
+                        }
+                    }
                     
-                    WriteDebugLog("[Export +] Export process started successfully");
-                    MessageBox.Show($"Export started!\n{selectedSheets.Count} sheets\n{selectedFormats.Count} formats\nOutput: {outputPath}", 
-                        "Export Started", MessageBoxButton.OK, MessageBoxImage.Information);
+                    WriteDebugLog("[Export +] Export process completed");
+                    
+                    if (exportSuccess)
+                    {
+                        MessageBox.Show($"Export completed successfully!\n\nExported: {totalExported} files\nLocation: {outputPath}", 
+                            "Export Completed", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Export failed or no files were exported.", 
+                            "Export Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
                         
                     // Reset status
                     if (StatusLabel != null)
                     {
-                        StatusLabel.Text = "Export completed";
+                        StatusLabel.Text = exportSuccess ? "Export completed" : "Export failed";
                     }
                 }
                 catch (Exception ex)

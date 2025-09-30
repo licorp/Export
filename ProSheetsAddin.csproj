@@ -73,6 +73,7 @@
     <Compile Include="Managers\ProfileManager.cs" />
     <Compile Include="Managers\DrawingTransmittalManager.cs" />
     <Compile Include="Managers\SchedulingAssistant.cs" />
+    <Compile Include="Managers\PDFExportManager.cs" />
     <Compile Include="Utils\FileNameGenerator.cs" />
     <Compile Include="Utils\NotificationHelper.cs" />
     <Compile Include="Utils\ParameterUtils.cs" />

@@ -257,7 +257,7 @@ namespace ProSheetsAddin.Models
     /// </summary>
     public class ExportSettings : INotifyPropertyChanged
     {
-        private string _outputFolder = @"D:\OneDrive\Desktop\26.09\";
+        private string _outputFolder = @"C:\Export_Plus_Output\";
         private bool _combineFiles = false;
         private string _fileNameTemplate = "{SheetNumber}_{SheetName}";
         private PSQualityType _quality = PSQualityType.High;

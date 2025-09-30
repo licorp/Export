@@ -22,39 +22,24 @@ namespace ProSheetsAddin.Managers
         {
             try
             {
-                var pdfOptions = new RevitDB.PDFExportOptions();
-                pdfOptions.ColorDepth = ConvertColorDepth(settings.ColorDepth);
-                pdfOptions.ZoomType = (RevitDB.ZoomType)(settings.ZoomType == PSZoomType.FitToPage ? RevitDB.ZoomFitType.FitToPage : RevitDB.ZoomFitType.Zoom);
-                pdfOptions.ZoomPercentage = settings.ZoomPercentage;
-                pdfOptions.HideCropBoundaries = settings.HideCropBoundaries;
-                pdfOptions.HideReferencePlane = settings.HideReferencePlane;
-                pdfOptions.HideScopeBoxes = settings.HideScopeBoxes;
-                pdfOptions.HideUnreferencedViewTags = settings.HideUnreferencedViewTags;
-                pdfOptions.MaskCoincidentLines = settings.MaskCoincidentLines;
+                // Use the new PDFExportManager
+                var pdfManager = new PDFExportManager(_document);
                 
-                for (int i = 0; i < sheets.Count; i++)
+                // Convert settings to ExportSettings
+                var exportSettings = new ExportSettings
                 {
-                    var sheet = sheets[i];
-                    var fileName = FileNameGenerator.GenerateFileName(sheet, _document, settings.FileNamingPattern, "pdf");
-                    var outputPath = settings.CreateSubfolders 
-                        ? FileNameGenerator.GenerateSubfolderPath(sheet, _document, settings)
-                        : settings.OutputFolder;
-                    
-                    try
-                    {
-                        var singleViewIds = new List<RevitDB.ElementId> { sheet.Id };
-                        var result = _document.Export(outputPath, singleViewIds, pdfOptions);
-                        
-                        progress?.Report(((i + 1) * 100) / sheets.Count);
-                        await Task.Yield();
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"PDF Export Error for sheet {sheet.SheetNumber}: {ex.Message}");
-                    }
-                }
+                    OutputFolder = settings.OutputFolder,
+                    CreateSeparateFolders = settings.CreateSubfolders
+                };
                 
-                return true;
+                // Export using native PDF manager
+                bool result = pdfManager.ExportSheetsToPDF(sheets, settings.OutputFolder, exportSettings);
+                
+                // Report 100% completion
+                progress?.Report(100);
+                await Task.Yield();
+                
+                return result;
             }
             catch (Exception ex)
             {
