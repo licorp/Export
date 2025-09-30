@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>ProSheets Exporter</Name>
+    <Assembly>ProSheetsAddin.dll</Assembly>
+    <FullClassName>ProSheetsAddin.Application</FullClassName>
+    <ClientId>B2A8A7B4-C2E4-4F2A-9B7C-8D1E3F4A5B6C</ClientId>
+    <VendorId>LICORP</VendorId>
+    <VendorDescription>Licorp Vietnam, www.licorp.vn</VendorDescription>
+    <Description>
+      Xuất hàng loạt các Views/Sheets sang PDF, DWG, DGN, DWF, NWC, IFC và các định dạng hình ảnh (JPEG, PNG, TIFF).
+      Tự động phát hiện kích thước và hướng giấy dựa trên Title Block.
+      Quy tắc đặt tên tùy chỉnh sử dụng parameters của sheet, project information.
+      Lưu settings vào profiles để tái sử dụng.
+      Tích hợp PDF24 làm virtual printer.
+      Lịch tự động xuất file.
+      Tạo Drawing Transmittal và Issue Register.
+    </Description>
+  </AddIn>
+</RevitAddIns>

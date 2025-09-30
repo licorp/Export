@@ -1,0 +1,11 @@
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin.csproj.AssemblyReference.cache
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin.csproj.CoreCompileInputs.cache
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\bin\Debug\ProSheetsAddin.dll
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\bin\Debug\ProSheetsAddin.pdb
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin.dll
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin.pdb
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\Views\ProSheetsMainWindow.baml
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\Views\ProSheetsMainWindow.g.cs
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin_MarkupCompile.cache
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin.g.resources
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin_MarkupCompile.lref

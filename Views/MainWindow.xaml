@@ -1,0 +1,565 @@
+<Window x:Class="ProSheetsAddin.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ProSheets Exporter - Xuất hàng loạt Views/Sheets"
+        Width="1000" Height="Auto"
+        MinHeight="650"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        SizeToContent="Height"
+        Background="#F5F5F5"
+        Loaded="Window_Loaded">
+
+    <Window.Resources>
+        <!-- Run / Export Button Style -->
+        <Style x:Key="RunButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="#388E3C"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#45A049"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#388E3C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Cancel Button Style -->
+        <Style x:Key="CancelButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F44336"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="#D32F2F"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E53935"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#D32F2F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary Button Style -->
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2196F3"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="#1976D2"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1E88E5"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#1976D2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- Outer Border with Drop Shadow -->
+    <Border Background="White"
+            BorderBrush="#E0E0E0"
+            BorderThickness="1"
+            CornerRadius="8"
+            Margin="10">
+        <Border.Effect>
+            <DropShadowEffect Color="Gray"
+                              Direction="315"
+                              ShadowDepth="3"
+                              Opacity="0.3"
+                              BlurRadius="10"/>
+        </Border.Effect>
+
+        <StackPanel Margin="25,15">
+            <!-- Title -->
+            <TextBlock Text="ProSheets Export Manager"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,20"/>
+
+            <!-- Output Folder Selection -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                <TextBlock Text="Thư mục xuất / Output Folder:" 
+                           VerticalAlignment="Center" 
+                           Width="200"
+                           FontWeight="SemiBold"/>
+                <TextBox Name="OutputFolderBox"
+                         IsReadOnly="True"
+                         VerticalContentAlignment="Center"
+                         FontSize="14"
+                         Width="550"
+                         Height="35"/>
+                <Button Content="Duyệt / Browse"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Width="120"
+                        Margin="10,0,0,0"
+                        Click="BrowseFolderBtn_Click"/>
+            </StackPanel>
+
+            <!-- Tabs -->
+            <TabControl Margin="0,0,0,15" Height="450">
+                
+                <!-- Sheets Selection Tab -->
+                <TabItem Header="Chọn Sheets / Sheets">
+                    <ScrollViewer>
+                        <StackPanel Margin="15">
+                            <!-- Quick Selection -->
+                            <GroupBox Header="Lựa chọn nhanh / Quick Selection" Margin="0,0,0,15">
+                                <StackPanel Margin="10">
+                                    <CheckBox Name="chkSelectAll" Content="Chọn tất cả sheets / Select All Sheets" 
+                                              FontWeight="SemiBold" Margin="0,0,0,10" 
+                                              Checked="ChkSelectAll_Checked" Unchecked="ChkSelectAll_Unchecked"/>
+                                    
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <CheckBox Name="chkActiveOnly" Content="Chỉ sheets đang mở / Active Sheets Only" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkModifiedOnly" Content="Chỉ sheets đã sửa đổi / Modified Only" Margin="0,0,20,0"/>
+                                        <DatePicker Name="ModifiedSinceDatePicker" Width="120" SelectedDate="{Binding ModifiedSince}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- Filter Options -->
+                            <GroupBox Header="Lọc theo điều kiện / Filter Options" Margin="0,0,0,15">
+                                <Grid Margin="10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <CheckBox Name="chkFilterByParameter" Content="Lọc theo Parameter:" 
+                                              Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                    <ComboBox Name="cmbParameterName" Grid.Row="0" Grid.Column="1" Margin="0,0,10,5" Width="150"/>
+                                    <TextBlock Text="Giá trị:" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                    <TextBox Name="txtParameterValue" Grid.Row="0" Grid.Column="3" Margin="0,0,0,5"/>
+
+                                    <CheckBox Name="chkFilterByRevision" Content="Lọc theo Revision:" 
+                                              Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,5,10,0"/>
+                                    <TextBox Name="txtRevisionValue" Grid.Row="1" Grid.Column="1" Margin="0,5,0,0" Width="150"/>
+                                </Grid>
+                            </GroupBox>
+
+                            <!-- Sheets List -->
+                            <GroupBox Header="Danh sách Sheets / Sheets List">
+                                <DataGrid Name="SheetsDataGrid"
+                                          Height="200"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          GridLinesVisibility="Horizontal"
+                                          HeadersVisibility="Column">
+                                    <DataGrid.Columns>
+                                        <DataGridCheckBoxColumn Header="Chọn" Binding="{Binding IsSelected}" Width="60"/>
+                                        <DataGridTextColumn Header="Sheet Number" Binding="{Binding SheetNumber}" Width="120" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Sheet Name" Binding="{Binding SheetName}" Width="300" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Revision" Binding="{Binding Revision}" Width="80" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Paper Size" Binding="{Binding PaperSize}" Width="120" IsReadOnly="True"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Export Formats Tab -->
+                <TabItem Header="Định dạng / Formats">
+                    <ScrollViewer>
+                        <StackPanel Margin="15">
+                            <!-- PDF Settings -->
+                            <GroupBox Header="PDF Export" Margin="0,0,0,15">
+                                <StackPanel Margin="10">
+                                    <CheckBox Name="chkExportPDF" Content="Xuất PDF / Export PDF" FontWeight="SemiBold" IsChecked="True" Margin="0,0,0,10"/>
+                                    
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Text="Chất lượng:" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="20,0,10,5"/>
+                                        <ComboBox Name="cmbPDFQuality" Grid.Row="0" Grid.Column="1" Margin="0,0,10,5">
+                                            <ComboBoxItem Content="DPI 150" Tag="DPI150"/>
+                                            <ComboBoxItem Content="DPI 300" Tag="DPI300"/>
+                                            <ComboBoxItem Content="DPI 600" Tag="DPI600" IsSelected="True"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="Màu sắc:" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                        <ComboBox Name="cmbPDFColorDepth" Grid.Row="0" Grid.Column="3" Margin="0,0,0,5">
+                                            <ComboBoxItem Content="Color" Tag="Color" IsSelected="True"/>
+                                            <ComboBoxItem Content="GrayScale" Tag="GrayScale"/>
+                                            <ComboBoxItem Content="BlackLine" Tag="BlackLine"/>
+                                        </ComboBox>
+
+                                        <CheckBox Name="chkCombinePDFs" Content="Kết hợp thành 1 file PDF"
+                                                  Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="20,5,0,5"/>
+                                        
+                                        <CheckBox Name="chkUsePDF24" Content="Sử dụng PDF24 Virtual Printer"
+                                                  Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Margin="0,5,0,5"/>
+
+                                        <CheckBox Name="chkHideCropBoundaries" Content="Ẩn Crop Boundaries" IsChecked="True"
+                                                  Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="20,5,0,0"/>
+                                        
+                                        <CheckBox Name="chkHideScopeBoxes" Content="Ẩn Scope Boxes" IsChecked="True"
+                                                  Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Margin="0,5,0,0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- CAD Formats -->
+                            <GroupBox Header="CAD Formats" Margin="0,0,0,15">
+                                <StackPanel Margin="10">
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox Name="chkExportDWG" Content="DWG" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkExportDGN" Content="DGN" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkExportDWF" Content="DWF" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkExportNWC" Content="NWC (Navisworks)" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkExportIFC" Content="IFC" Margin="0,0,20,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- Image Formats -->
+                            <GroupBox Header="Hình ảnh / Image Formats">
+                                <StackPanel Margin="10">
+                                    <CheckBox Name="chkExportImage" Content="Xuất hình ảnh / Export Images" Margin="0,0,0,10"/>
+                                    
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Định dạng:" Grid.Column="0" VerticalAlignment="Center" Margin="20,0,10,0"/>
+                                        <ComboBox Name="cmbImageFormat" Grid.Column="1" Margin="0,0,10,0">
+                                            <ComboBoxItem Content="PNG" Tag="PNG" IsSelected="True"/>
+                                            <ComboBoxItem Content="JPEG" Tag="JPEG"/>
+                                            <ComboBoxItem Content="TIFF" Tag="TIFF"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="Độ phân giải:" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <ComboBox Name="cmbImageResolution" Grid.Column="3">
+                                            <ComboBoxItem Content="DPI 150" Tag="DPI_150"/>
+                                            <ComboBoxItem Content="DPI 300" Tag="DPI_300" IsSelected="True"/>
+                                            <ComboBoxItem Content="DPI 600" Tag="DPI_600"/>
+                                            <ComboBoxItem Content="DPI 1200" Tag="DPI_1200"/>
+                                        </ComboBox>
+                                    </Grid>
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Naming Rules Tab -->
+                <TabItem Header="Đặt tên / Naming">
+                    <ScrollViewer>
+                        <StackPanel Margin="15">
+                            <!-- File Naming Template -->
+                            <GroupBox Header="Quy tắc đặt tên file / File Naming Rules" Margin="0,0,0,15">
+                                <StackPanel Margin="10">
+                                    <TextBlock Text="Template tên file / File Name Template:" Margin="0,0,0,5"/>
+                                    <TextBox Name="txtFileNameTemplate" 
+                                             Margin="0,0,0,10">
+                                        <TextBox.Text><![CDATA[{ProjectNumber}_{SheetNumber}_{SheetName}]]></TextBox.Text>
+                                    </TextBox>
+                                    
+                                    <TextBlock Text="Các biến có sẵn / Available Variables:" Margin="0,0,0,5"/>
+                                    <TextBlock FontSize="11" Foreground="Gray" Margin="0,0,0,10">
+                                        <TextBlock.Text><![CDATA[{ProjectNumber}, {ProjectName}, {SheetNumber}, {SheetName}, {Revision}, {Date}, {Time}, {User}]]></TextBlock.Text>
+                                    </TextBlock>
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox Name="chkIncludeRevision" Content="Bao gồm Revision" IsChecked="True" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkIncludeDate" Content="Bao gồm ngày tháng" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkReplaceSpaces" Content="Thay khoảng trắng bằng _" IsChecked="True"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- Subfolders -->
+                            <GroupBox Header="Thư mục con / Subfolders" Margin="0,0,0,15">
+                                <StackPanel Margin="10">
+                                    <CheckBox Name="chkCreateSubfolders" Content="Tạo thư mục con theo loại bản vẽ" Margin="0,0,0,10"/>
+                                    
+                                    <TextBlock Text="Template thư mục con:" Margin="0,0,0,5"/>
+                                    <TextBox Name="txtSubfolderTemplate" 
+                                             Margin="0,0,0,10">
+                                        <TextBox.Text><![CDATA[{DrawingType}]]></TextBox.Text>
+                                    </TextBox>
+                                    
+                                    <TextBlock FontSize="11" Foreground="Gray">
+                                        <TextBlock.Text><![CDATA[Các biến thư mục: {DrawingType}, {Discipline}, {Level}, {Phase}]]></TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- Preview -->
+                            <GroupBox Header="Xem trước / Preview">
+                                <StackPanel Margin="10">
+                                    <TextBlock Text="Ví dụ tên file:" Margin="0,0,0,5"/>
+                                    <TextBox Name="txtFileNamePreview" 
+                                             IsReadOnly="True" 
+                                             Background="#F0F0F0"
+                                             Text="PROJ001_A101_Ground Floor Plan.pdf"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Advanced Settings Tab -->
+                <TabItem Header="Nâng cao / Advanced">
+                    <ScrollViewer>
+                        <StackPanel Margin="15">
+                            <!-- Paper Size Detection -->
+                            <GroupBox Header="Phát hiện kích thước giấy / Paper Size Detection" Margin="0,0,0,15">
+                                <StackPanel Margin="10">
+                                    <CheckBox Name="chkAutoDetectPaperSize" Content="Tự động phát hiện từ Title Block" IsChecked="True" Margin="0,0,0,10"/>
+                                    
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="Dung sai (mm):" Grid.Column="0" VerticalAlignment="Center" Margin="20,0,10,0"/>
+                                        <TextBox Name="txtPaperSizeTolerance" Grid.Column="1" Text="5.0" Width="100" HorizontalAlignment="Left"/>
+                                    </Grid>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- XML Export -->
+                            <GroupBox Header="XML Export với Parameters" Margin="0,0,0,15">
+                                <StackPanel Margin="10">
+                                    <CheckBox Name="chkExportXML" Content="Xuất thông tin sheets ra XML" Margin="0,0,0,10"/>
+                                    
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <CheckBox Name="chkIncludeProjectInfo" Content="Project Information" Margin="20,0,20,0"/>
+                                        <CheckBox Name="chkIncludeRevisions" Content="Revision History" Margin="0,0,20,0"/>
+                                        <CheckBox Name="chkIncludeDateTime" Content="Date/Time" Margin="0,0,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <TextBlock Text="Custom Parameters (cách nhau bởi dấu phẩy):" Margin="0,0,0,5"/>
+                                    <TextBox Name="txtCustomParameters" 
+                                             Text="Drawn By, Checked By, Approved By, Issue Date"
+                                             Margin="0,0,0,0"/>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- PDF24 Settings -->
+                            <GroupBox Header="PDF24 Integration">
+                                <StackPanel Margin="10">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <TextBlock Text="Đường dẫn PDF24:" VerticalAlignment="Center" Width="120"/>
+                                        <TextBox Name="txtPDF24Path" 
+                                                 Text="C:\Program Files\PDF24\pdf24-Converter.exe"
+                                                 Width="400"/>
+                                        <Button Content="..." Width="30" Margin="5,0,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <TextBlock Text="PDF24 sẽ được sử dụng làm virtual printer để tạo PDF chất lượng cao"
+                                               FontSize="11" Foreground="Gray"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Profiles Tab -->
+                <TabItem Header="Profiles">
+                    <ScrollViewer>
+                        <StackPanel Margin="15">
+                            <!-- Load/Save Profiles -->
+                            <GroupBox Header="Quản lý Profiles / Profile Management" Margin="0,0,0,15">
+                                <Grid Margin="10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="Profile hiện tại:" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                                    <ComboBox Name="cmbProfiles" Grid.Row="0" Grid.Column="1" Margin="0,0,10,10"/>
+                                    <Button Name="btnLoadProfile" Content="Load" Grid.Row="0" Grid.Column="2" 
+                                            Style="{StaticResource SecondaryButtonStyle}" Width="80" Margin="0,0,10,10"/>
+                                    <Button Name="btnDeleteProfile" Content="Delete" Grid.Row="0" Grid.Column="3" 
+                                            Style="{StaticResource CancelButtonStyle}" Width="80" Margin="0,0,0,10"/>
+
+                                    <TextBlock Text="Tên profile mới:" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                                    <TextBox Name="txtNewProfileName" Grid.Row="1" Grid.Column="1" Margin="0,0,10,10"/>
+                                    <Button Name="btnSaveProfile" Content="Save" Grid.Row="1" Grid.Column="2" 
+                                            Style="{StaticResource RunButtonStyle}" Width="80" Margin="0,0,10,10"/>
+
+                                    <CheckBox Name="chkSaveAsDefault" Content="Đặt làm profile mặc định"
+                                              Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,5,0,0"/>
+                                </Grid>
+                            </GroupBox>
+
+                            <!-- Scheduled Export -->
+                            <GroupBox Header="Lịch tự động xuất / Scheduled Export">
+                                <StackPanel Margin="10">
+                                    <CheckBox Name="chkEnableSchedule" Content="Bật lịch tự động xuất" Margin="0,0,0,10"/>
+                                    
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Text="Ngày bắt đầu:" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="20,0,10,5"/>
+                                        <DatePicker Name="dpScheduleStartDate" Grid.Row="0" Grid.Column="1" Margin="0,0,10,5"/>
+                                        
+                                        <TextBlock Text="Giờ:" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                        <TextBox Name="txtScheduleTime" Grid.Row="0" Grid.Column="3" Margin="0,0,0,5" Text="08:00"/>
+
+                                        <TextBlock Text="Lặp lại:" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="20,0,10,5"/>
+                                        <ComboBox Name="cmbScheduleRepeat" Grid.Row="1" Grid.Column="1" Margin="0,0,10,5">
+                                            <ComboBoxItem Content="Một lần" Tag="Once"/>
+                                            <ComboBoxItem Content="Hàng ngày" Tag="Daily" IsSelected="True"/>
+                                            <ComboBoxItem Content="Hàng tuần" Tag="Weekly"/>
+                                            <ComboBoxItem Content="Hàng tháng" Tag="Monthly"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="Email thông báo:" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Margin="20,0,10,0"/>
+                                        <TextBox Name="txtNotificationEmail" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,0"/>
+                                    </Grid>
+
+                                    <Button Name="btnScheduleManager" Content="Mở Schedule Manager" 
+                                            Style="{StaticResource SecondaryButtonStyle}" 
+                                            Width="180" Margin="0,10,0,0" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+
+            <!-- Progress Bar (Hidden by default) -->
+            <ProgressBar Name="ExportProgressBar"
+                         Height="20"
+                         Margin="0,0,0,15"
+                         Visibility="Collapsed"/>
+
+            <!-- Action Buttons -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="Version 1.0 – ProSheetsAddin by Licorp"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="Black"/>
+
+                <Button Grid.Column="1"
+                        Name="btnTransmittal"
+                        Content="Drawing Transmittal"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Width="140"
+                        Margin="0,0,10,0"
+                        Click="TransmittalBtn_Click"/>
+
+                <Button Grid.Column="2"
+                        Name="btnPreview"
+                        Content="Xem trước / Preview"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Width="130"
+                        Margin="0,0,10,0"
+                        Click="PreviewBtn_Click"/>
+
+                <Button Grid.Column="3"
+                        Name="btnExport"
+                        Content="Xuất / Export"
+                        Style="{StaticResource RunButtonStyle}"
+                        Width="110"
+                        Margin="0,0,10,0"
+                        Click="ExportBtn_Click"/>
+                        
+                <Button Grid.Column="4"
+                        Name="btnCancel"
+                        Content="Hủy / Cancel"
+                        Style="{StaticResource CancelButtonStyle}"
+                        Width="100"
+                        Click="CancelBtn_Click"/>
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>
