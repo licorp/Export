@@ -5,9 +5,11 @@ namespace ProSheetsAddin.Models
     public class SheetItem : INotifyPropertyChanged
     {
         private bool _isSelected;
-        private string _number;
-        private string _name;
-        private string _customDrawingNumber;
+        private string _sheetNumber;
+        private string _sheetName;
+        private string _revision;
+        private string _size;
+        private string _customFileName;
 
         public bool IsSelected
         {
@@ -22,43 +24,88 @@ namespace ProSheetsAddin.Models
             }
         }
 
-        public string Number
+        public string SheetNumber
         {
-            get => _number;
+            get => _sheetNumber;
             set
             {
-                if (_number != value)
+                if (_sheetNumber != value)
                 {
-                    _number = value;
-                    OnPropertyChanged(nameof(Number));
+                    _sheetNumber = value;
+                    OnPropertyChanged(nameof(SheetNumber));
                 }
             }
+        }
+
+        public string SheetName
+        {
+            get => _sheetName;
+            set
+            {
+                if (_sheetName != value)
+                {
+                    _sheetName = value;
+                    OnPropertyChanged(nameof(SheetName));
+                }
+            }
+        }
+
+        public string Revision
+        {
+            get => _revision;
+            set
+            {
+                if (_revision != value)
+                {
+                    _revision = value;
+                    OnPropertyChanged(nameof(Revision));
+                }
+            }
+        }
+
+        public string Size
+        {
+            get => _size;
+            set
+            {
+                if (_size != value)
+                {
+                    _size = value;
+                    OnPropertyChanged(nameof(Size));
+                }
+            }
+        }
+
+        public string CustomFileName
+        {
+            get => _customFileName;
+            set
+            {
+                if (_customFileName != value)
+                {
+                    _customFileName = value;
+                    OnPropertyChanged(nameof(CustomFileName));
+                }
+            }
+        }
+
+        // Legacy properties for backward compatibility
+        public string Number
+        {
+            get => SheetNumber;
+            set => SheetNumber = value;
         }
 
         public string Name
         {
-            get => _name;
-            set
-            {
-                if (_name != value)
-                {
-                    _name = value;
-                    OnPropertyChanged(nameof(Name));
-                }
-            }
+            get => SheetName;
+            set => SheetName = value;
         }
 
         public string CustomDrawingNumber
         {
-            get => _customDrawingNumber;
-            set
-            {
-                if (_customDrawingNumber != value)
-                {
-                    _customDrawingNumber = value;
-                    OnPropertyChanged(nameof(CustomDrawingNumber));
-                }
-            }
+            get => CustomFileName;
+            set => CustomFileName = value;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

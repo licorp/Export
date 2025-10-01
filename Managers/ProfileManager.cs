@@ -1,39 +1,46 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using ProSheetsAddin.Models;
+using Newtonsoft.Json;
 
 namespace ProSheetsAddin.Managers
 {
     public class ProfileManager
     {
         private readonly string _profilesPath;
-        private List<ExportProfile> _profiles;
+        private readonly string _prosheeetsProfilesPath;
+        private ObservableCollection<ProSheetsProfile> _profiles;
+
+        public ObservableCollection<ProSheetsProfile> Profiles => _profiles ?? new ObservableCollection<ProSheetsProfile>();
 
         public ProfileManager()
         {
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var proSheetsFolder = Path.Combine(appDataPath, "ProSheetsAddin");
+            var diRootsFolder = Path.Combine(appDataPath, "DiRoots", "ProSheets");
             
             if (!Directory.Exists(proSheetsFolder))
                 Directory.CreateDirectory(proSheetsFolder);
                 
             _profilesPath = Path.Combine(proSheetsFolder, "profiles.json");
+            _prosheeetsProfilesPath = diRootsFolder; // Thư mục ProSheets gốc
             LoadProfiles();
         }
 
-        public List<ExportProfile> GetProfiles()
+        public List<ProSheetsProfile> GetProfiles()
         {
-            return _profiles ?? new List<ExportProfile>();
+            return _profiles?.ToList() ?? new List<ProSheetsProfile>();
         }
 
-        public void SaveProfile(ExportProfile profile)
+        public void SaveProfile(ProSheetsProfile profile)
         {
             if (_profiles == null)
-                _profiles = new List<ExportProfile>();
+                _profiles = new ObservableCollection<ProSheetsProfile>();
 
-            var existingProfile = _profiles.FirstOrDefault(p => p.Name == profile.Name);
+            var existingProfile = _profiles.FirstOrDefault(p => p.ProfileName == profile.ProfileName);
             if (existingProfile != null)
             {
                 _profiles.Remove(existingProfile);
@@ -43,9 +50,9 @@ namespace ProSheetsAddin.Managers
             SaveProfiles();
         }
 
-        public void SaveProfile(string profileName, ExportProfile profile)
+        public void SaveProfile(string profileName, ProSheetsProfile profile)
         {
-            profile.Name = profileName;
+            profile.ProfileName = profileName;
             SaveProfile(profile);
         }
 
@@ -53,7 +60,7 @@ namespace ProSheetsAddin.Managers
         {
             if (_profiles == null) return;
 
-            var profile = _profiles.FirstOrDefault(p => p.Name == profileName);
+            var profile = _profiles.FirstOrDefault(p => p.ProfileName == profileName);
             if (profile != null)
             {
                 _profiles.Remove(profile);
@@ -61,20 +68,77 @@ namespace ProSheetsAddin.Managers
             }
         }
 
-        public ExportProfile GetProfile(string name)
+        public ProSheetsProfile GetProfile(string name)
         {
-            return _profiles?.FirstOrDefault(p => p.Name == name);
+            return _profiles?.FirstOrDefault(p => p.ProfileName == name);
+        }
+
+        /// <summary>
+        /// Load ProSheets profiles from JSON files (compatible with DiRoots ProSheets)
+        /// </summary>
+        public void LoadProSheetsProfile(string jsonFilePath)
+        {
+            try
+            {
+                if (File.Exists(jsonFilePath))
+                {
+                    var json = File.ReadAllText(jsonFilePath);
+                    var profile = JsonConvert.DeserializeObject<ProSheetsProfile>(json);
+                    
+                    if (profile != null && !string.IsNullOrEmpty(profile.ProfileName))
+                    {
+                        SaveProfile(profile);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error
+                System.Diagnostics.Debug.WriteLine($"Error loading ProSheets profile: {ex.Message}");
+            }
         }
 
         private void LoadProfiles()
         {
             try
             {
-                _profiles = CreateDefaultProfiles();
+                if (File.Exists(_profilesPath))
+                {
+                    var json = File.ReadAllText(_profilesPath);
+                    var profilesList = JsonConvert.DeserializeObject<List<ProSheetsProfile>>(json);
+                    _profiles = new ObservableCollection<ProSheetsProfile>(profilesList ?? new List<ProSheetsProfile>());
+                }
+                else
+                {
+                    _profiles = CreateDefaultProfiles();
+                }
+                
+                // Tìm profiles từ DiRoots ProSheets nếu có
+                LoadExistingProSheetsProfiles();
             }
             catch (Exception ex)
             {
                 _profiles = CreateDefaultProfiles();
+                System.Diagnostics.Debug.WriteLine($"Error loading profiles: {ex.Message}");
+            }
+        }
+
+        private void LoadExistingProSheetsProfiles()
+        {
+            try
+            {
+                if (Directory.Exists(_prosheeetsProfilesPath))
+                {
+                    var jsonFiles = Directory.GetFiles(_prosheeetsProfilesPath, "*.json");
+                    foreach (var jsonFile in jsonFiles)
+                    {
+                        LoadProSheetsProfile(jsonFile);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading existing ProSheets profiles: {ex.Message}");
             }
         }
 
@@ -82,48 +146,36 @@ namespace ProSheetsAddin.Managers
         {
             try
             {
-                // Simplified - just keep profiles in memory for now
+                var json = JsonConvert.SerializeObject(_profiles?.ToList(), Formatting.Indented);
+                File.WriteAllText(_profilesPath, json);
             }
             catch (Exception ex)
             {
-                // Log error
+                System.Diagnostics.Debug.WriteLine($"Error saving profiles: {ex.Message}");
             }
         }
 
-        private List<ExportProfile> CreateDefaultProfiles()
+        private ObservableCollection<ProSheetsProfile> CreateDefaultProfiles()
         {
-            return new List<ExportProfile>
+            return new ObservableCollection<ProSheetsProfile>
             {
-                new ExportProfile
+                new ProSheetsProfile
                 {
-                    Name = "Mặc định PDF",
-                    Description = "Xuất PDF chất lượng cao",
-                    ExportFormat = PSExportFormat.PDF,
-                    PdfSettings = new PSPDFExportSettings
-                    {
-                        Resolution = 300,
-                        ColorDepth = PSColorDepth.Color,
-                        ZoomType = PSZoomType.FitToPage,
-                        PaperSize = PSPaperSize.ISO_A3,
-                        HideCropBoundaries = true,
-                        HideReferencePlane = true,
-                        HideScopeBoxes = true,
-                        HideUnreferencedViewTags = true,
-                        MaskCoincidentLines = true,
-                        ExportLinks = true,
-                        RasterQuality = PSRasterQualityType.High
-                    }
+                    ProfileName = "Mặc định PDF",
+                    OutputFolder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                    SelectedFormats = new List<string> { "PDF" },
+                    CreateSeparateFolders = false,
+                    PaperSize = "A3",
+                    Orientation = "Landscape"
                 },
-                new ExportProfile
+                new ProSheetsProfile
                 {
-                    Name = "Mặc định DWG",
-                    Description = "Xuất DWG AutoCAD 2018",
-                    ExportFormat = PSExportFormat.DWG,
-                    DwgSettings = new PSDWGExportSettings
-                    {
-                        DWGVersion = "2018",
-                        UseSharedCoordinates = false
-                    }
+                    ProfileName = "Xuất đầy đủ",
+                    OutputFolder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                    SelectedFormats = new List<string> { "PDF", "DWG", "JPG" },
+                    CreateSeparateFolders = true,
+                    PaperSize = "A3",
+                    Orientation = "Landscape"
                 }
             };
         }

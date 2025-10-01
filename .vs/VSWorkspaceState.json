@@ -3,8 +3,9 @@
     "",
     "\\bin",
     "\\bin\\Debug",
-    "\\Commands"
+    "\\Commands",
+    "\\Views"
   ],
-  "SelectedNode": "\\Export.sln",
+  "SelectedNode": "\\Views\\ProSheetsMainWindow.xaml",
   "PreviewInSolutionExplorer": false
 }

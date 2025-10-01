@@ -56,14 +56,22 @@
     <Reference Include="System.Xaml" />
     <Reference Include="UIAutomationProvider" />
     <Reference Include="UIAutomationTypes" />
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Application.cs" />
     <Compile Include="Commands\SimpleExportCommand.cs" />
     <Compile Include="Commands\TestCommand.cs" />
     <Compile Include="Models\ProSheetsModels.cs" />
+    <Compile Include="Models\ProSheetsXMLProfile.cs" />
     <Compile Include="Models\SheetItem.cs" />
+    <Compile Include="Models\ViewItem.cs" />
+    <Compile Include="Models\ProSheetsProfile.cs" />
+    <Compile Include="Managers\XMLProfileManager.cs" />
     <Compile Include="Views\Converters.cs" />
+    <Compile Include="Converters\UIConverters.cs" />
     <Compile Include="Managers\BatchExportManager.cs" />
     <Compile Include="Managers\DWGExportManager.cs" />
     <Compile Include="Managers\IFCExportManager.cs" />
@@ -74,6 +82,7 @@
     <Compile Include="Managers\DrawingTransmittalManager.cs" />
     <Compile Include="Managers\SchedulingAssistant.cs" />
     <Compile Include="Managers\PDFExportManager.cs" />
+    <Compile Include="Managers\ProSheetsProfileManager.cs" />
     <Compile Include="Utils\FileNameGenerator.cs" />
     <Compile Include="Utils\NotificationHelper.cs" />
     <Compile Include="Utils\ParameterUtils.cs" />
