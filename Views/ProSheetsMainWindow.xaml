@@ -6,6 +6,10 @@
         Height="750" Width="1200"
         MinHeight="600" MinWidth="800"
         WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        Topmost="False"
+        WindowState="Normal"
+        ResizeMode="CanResize"
         DataContext="{Binding RelativeSource={RelativeSource Self}}">
 
     <Window.Resources>
@@ -129,27 +133,27 @@
 
                     <!-- Profile Manager Bar -->
                     <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E1E1E1" BorderThickness="1" 
-                            CornerRadius="3" Padding="15" Margin="763,15,0,15">
+                            CornerRadius="3" Padding="15" Margin="570,15,-2,15">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Profile:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
-                            <ComboBox x:Name="ProfileComboBox" Width="200" Height="28" Margin="0,0,10,0"
+                            <ComboBox x:Name="ProfileComboBox" Width="200" Height="40" Margin="0,0,10,0"
                                       ItemsSource="{Binding Profiles}"
                                       SelectedItem="{Binding SelectedProfile}"
                                       DisplayMemberPath="ProfileName"
                                       SelectionChanged="ProfileComboBox_SelectionChanged"/>
-                            <Button Content="+" Width="28" Height="28" Margin="0,0,5,0" 
+                            <Button Content="Add" Width="70" Height="40" Margin="0,0,5,0" 
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     ToolTip="Add new profile"
                                     Click="AddProfile_Click"/>
-                            <Button Content="💾" Width="28" Height="28" Margin="0,0,5,0"
+                            <Button Content="Save" Width="70" Height="40" Margin="0,0,5,0"
                                     Style="{StaticResource SecondaryButtonStyle}" 
                                     ToolTip="Save current profile"
                                     Click="SaveProfile_Click"/>
-                            <Button Content="🗑" Width="28" Height="28" Margin="0,0,5,0"
+                            <Button Content="Del" Width="60" Height="40" Margin="0,0,5,0"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     ToolTip="Delete profile"
                                     Click="DeleteProfile_Click"/>
-                            <Button Content="📁" Width="28" Height="28" Margin="0,0,10,0"
+                            <Button Content="Import" Width="80" Height="40" Margin="0,0,10,0"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     ToolTip="Import ProSheets profile (*.json)"
                                     Click="ImportProfile_Click"/>
@@ -179,7 +183,8 @@
 
                         <!-- View/Sheet Set Dropdown -->
                         <TextBlock Grid.Column="1" Text="View/Sheet Set:" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
-                        <ComboBox Grid.Column="2" x:Name="ViewSheetSetCombo" Width="150" Height="28" Margin="0,0,10,0">
+                        <ComboBox Grid.Column="2" x:Name="ViewSheetSetCombo" Width="150" Height="28" Margin="0,0,10,0"
+                                  SelectionChanged="ViewSheetSetCombo_SelectionChanged">
                             <ComboBoxItem Content="&lt;None&gt;" IsSelected="True"/>
                             <ComboBoxItem Content="All Sheets"/>
                             <ComboBoxItem Content="Architectural"/>
@@ -188,19 +193,27 @@
                         </ComboBox>
 
                         <!-- Filter and Save Buttons -->
-                        <Button Grid.Column="3" Content="Filter" Style="{StaticResource SecondaryButtonStyle}" 
-                                Width="60" Height="40" Margin="0,0,5,0" FontSize="12"/>
-                        
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,10,0">
+                            <Button Content="Filter" Width="60" Height="28" Margin="0,0,5,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    ToolTip="Filter sheets/views by selected View/Sheet Set"
+                                    Click="FilterByVSSet_Click"/>
+                            <Button Content="Reset" Width="50" Height="28" Margin="0,0,10,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    ToolTip="Reset filter and show all items"
+                                    Click="ResetFilter_Click"/>
+                        </StackPanel>
+
                         <!-- Custom File Name Actions -->
                         <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="0,0,10,0">
-                            <Button Content="Reset Names" Style="{StaticResource SecondaryButtonStyle}" 
-                                    Width="80" Height="28" Margin="0,0,5,0" FontSize="11"
-                                    ToolTip="Reset custom file names to default"
-                                    Click="ResetFileNames_Click"/>
-                            <Button Content="Apply Template" Style="{StaticResource PrimaryButtonStyle}" 
-                                    Width="90" Height="28" Margin="0,0,5,0" FontSize="11"
-                                    ToolTip="Apply file naming template from current profile"
-                                    Click="ApplyTemplate_Click"/>
+
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Custom Filename" Height="40" Width="150"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            ToolTip="Set custom filename for all selected sheets/views"
+                                            Click="SetAllCustomFileName_Click"/>
+                            </StackPanel>
+
                         </StackPanel>
 
                         <!-- Search TextBox -->
@@ -239,7 +252,8 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0" BorderBrush="#E1E1E1" BorderThickness="0,0,1,1">
-                            <CheckBox x:Name="SelectAllCheckBox" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <CheckBox x:Name="SelectAllCheckBox" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Checked="SelectAllCheckBox_Checked" Unchecked="SelectAllCheckBox_Unchecked"/>
                         </Border>
                         <Border Grid.Column="1" BorderBrush="#E1E1E1" BorderThickness="0,0,1,1">
                             <TextBlock Text="Sheet Number" Style="{StaticResource CustomHeaderTextBlock}"/>
@@ -318,7 +332,8 @@
                                     <DataTemplate>
                                         <TextBox Text="{Binding CustomFileName, UpdateSourceTrigger=PropertyChanged}" 
                                                  Margin="8,5" Background="Transparent" BorderThickness="0"
-                                                 VerticalContentAlignment="Center"/>
+                                                 VerticalContentAlignment="Center" 
+                                                 ToolTip="Custom file name (use button above to set for all)"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -377,7 +392,8 @@
                                     <DataTemplate>
                                         <TextBox Text="{Binding CustomFileName, UpdateSourceTrigger=PropertyChanged}" 
                                                  Margin="8,5" Background="Transparent" BorderThickness="0"
-                                                 VerticalContentAlignment="Center"/>
+                                                 VerticalContentAlignment="Center"
+                                                 ToolTip="Custom file name (use button above to set for all)"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -386,11 +402,53 @@
 
                     <!-- Bottom Status -->
                     <Grid Grid.Row="4" Margin="0,15,0,0">
-                        <TextBlock x:Name="SelectionStatusText" 
-                                   Text="0 of 0 sheets selected" 
-                                   FontSize="12" 
-                                   Foreground="#666" 
-                                   VerticalAlignment="Center"/>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <!-- Selection Statistics -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <Border Background="#E3F2FD" BorderBrush="#2196F3" BorderThickness="1" 
+                                    CornerRadius="3" Padding="10,5" Margin="0,0,10,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📄" FontSize="16" Margin="0,0,5,0"/>
+                                    <TextBlock x:Name="SheetsCountText" Text="0 sheets selected" 
+                                               FontWeight="SemiBold" Foreground="#1976D2"/>
+                                </StackPanel>
+                            </Border>
+                            
+                            <Border Background="#E8F5E8" BorderBrush="#4CAF50" BorderThickness="1" 
+                                    CornerRadius="3" Padding="10,5" Margin="0,0,10,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="👁️" FontSize="16" Margin="0,0,5,0"/>
+                                    <TextBlock x:Name="ViewsCountText" Text="0 views selected" 
+                                               FontWeight="SemiBold" Foreground="#388E3C"/>
+                                </StackPanel>
+                            </Border>
+                            
+                            <Border Background="#FFF3E0" BorderBrush="#FF9800" BorderThickness="1" 
+                                    CornerRadius="3" Padding="10,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📊" FontSize="16" Margin="0,0,5,0"/>
+                                    <TextBlock x:Name="TotalItemsText" Text="Total: 0 items" 
+                                               FontWeight="SemiBold" Foreground="#F57C00"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        
+                        <!-- Action Buttons -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="Select All" Width="100" Height="40" Margin="0,0,5,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="SelectAll_Click"/>
+                            <Button Content="Clear All" Width="100" Height="40" Margin="0,0,5,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="ClearAll_Click"/>
+                            <Button Content="Refresh" Width="80" Height="40"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="Refresh_Click"/>
+                        </StackPanel>
                     </Grid>
                 </Grid>
             </TabItem>
@@ -426,6 +484,8 @@
                                           IsChecked="{Binding ExportSettings.IsPngSelected, Mode=TwoWay}"/>
                                 <CheckBox Content="IFC" Margin="0,0,15,0" 
                                           IsChecked="{Binding ExportSettings.IsIfcSelected, Mode=TwoWay}"/>
+                                <CheckBox Content="Navisworks" Margin="0,0,15,0" 
+                                          IsChecked="{Binding ExportSettings.IsNwcSelected, Mode=TwoWay}"/>
                             </WrapPanel>
                         </StackPanel>
                     </Border>
@@ -480,6 +540,147 @@
                     </TabControl>
                 </Grid>
             </TabItem>
+            
+            <!-- Create Tab -->
+            <TabItem x:Name="CreateTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Fill="#4CAF50" Width="8" Height="8" Margin="0,0,5,0"/>
+                        <TextBlock Text="Create"/>
+                    </StackPanel>
+                </TabItem.Header>
+                
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Output Folder Selection -->
+                    <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E1E1E1" BorderThickness="1" 
+                            CornerRadius="3" Padding="15" Margin="0,0,0,15">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Text="Output Folder" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                            
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <TextBox Grid.Column="0" x:Name="OutputFolderTextBox" 
+                                         Text="{Binding OutputFolder, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="35" VerticalContentAlignment="Center" 
+                                         Margin="0,0,10,0" FontSize="13"/>
+                                         
+                                <Button Grid.Column="1" Content="Browse..." Width="80" Height="35"
+                                        Click="BrowseOutputFolder_Click"
+                                        Background="#2196F3" Foreground="White" BorderThickness="0"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- Selection Summary -->
+                    <Border Grid.Row="1" Background="#F0F4FF" BorderBrush="#2196F3" BorderThickness="1" 
+                            CornerRadius="3" Padding="15" Margin="0,0,0,15">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Selection Summary" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                                <TextBlock x:Name="SelectionSummaryText" Text="No items selected" 
+                                           FontSize="13" Foreground="#666"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                <TextBlock Text="Export Formats" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                                <TextBlock x:Name="FormatSummaryText" Text="No formats selected" 
+                                           FontSize="13" Foreground="#666"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Selected Items Preview -->
+                    <Border Grid.Row="2" Background="White" BorderBrush="#E1E1E1" BorderThickness="1" 
+                            CornerRadius="3">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            
+                            <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E1E1E1" 
+                                    BorderThickness="0,0,0,1" Padding="15,10">
+                                <TextBlock Text="Selected Items Preview" FontWeight="SemiBold"/>
+                            </Border>
+                            
+                            <ListBox Grid.Row="1" x:Name="SelectedItemsListBox" 
+                                     BorderThickness="0" Margin="10"
+                                     ItemsSource="{Binding SelectedItemsForExport}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="150"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <Ellipse Grid.Column="0" Fill="#4CAF50" Width="8" Height="8" 
+                                                     VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Number}" FontWeight="SemiBold" 
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Name}" 
+                                                       VerticalAlignment="Center" Margin="10,0"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding CustomFileName}" 
+                                                       FontStyle="Italic" Foreground="#666"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Create Button -->
+                    <Button Grid.Row="3" Content="CREATE FILES" Height="45" 
+                            FontSize="14" FontWeight="SemiBold"
+                            Background="#4CAF50" Foreground="White" BorderThickness="0"
+                            Margin="0,15,0,0" Click="CreateFiles_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" 
+                                                    CornerRadius="3" BorderThickness="0">
+                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                  VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#45A049"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </TabItem>
         </TabControl>
 
         <!-- Bottom Section -->
@@ -491,9 +692,6 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Column="0" x:Name="BottomStatusText" 
-                           Text="0 sheets selected" FontSize="12" VerticalAlignment="Center"/>
                 <Button Grid.Column="1" Content="Settings" 
                         Style="{StaticResource SecondaryButtonStyle}"
                         Width="80" Height="40" Margin="0,0,10,0"/>

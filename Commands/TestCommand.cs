@@ -43,8 +43,9 @@ namespace ProSheetsAddin.Commands
                     var mainWindow = new Views.ProSheetsMainWindow(doc);
                     Debug.WriteLine("[Export +] XAML main window created successfully");
                     
-                    mainWindow.ShowDialog();
-                    Debug.WriteLine("[Export +] XAML main window closed");
+                    // Show as non-modal window so user can interact with both Revit and ProSheets
+                    mainWindow.Show();
+                    Debug.WriteLine("[Export +] XAML main window shown (non-modal)");
                 }
                 catch (Exception ex)
                 {

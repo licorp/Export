@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Autodesk.Revit.DB;
 
 namespace ProSheetsAddin.Models
 {
@@ -10,6 +11,20 @@ namespace ProSheetsAddin.Models
         private string _revision;
         private string _size;
         private string _customFileName;
+        private ElementId _id;
+
+        public ElementId Id
+        {
+            get => _id;
+            set
+            {
+                if (_id != value)
+                {
+                    _id = value;
+                    OnPropertyChanged(nameof(Id));
+                }
+            }
+        }
 
         public bool IsSelected
         {

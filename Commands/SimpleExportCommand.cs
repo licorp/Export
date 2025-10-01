@@ -25,8 +25,9 @@ namespace ProSheetsAddin.Commands
                 var window = CreateBeautifulWindow(commandData);
                 Debug.WriteLine("[Export +] Main export window created");
                 
-                window.ShowDialog();
-                Debug.WriteLine("[Export +] Export window closed");
+                // Show as non-modal window so user can interact with both Revit and ProSheets
+                window.Show();
+                Debug.WriteLine("[Export +] Export window shown (non-modal)");
                 
                 return Result.Succeeded;
             }

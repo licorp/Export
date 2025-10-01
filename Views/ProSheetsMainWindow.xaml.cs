@@ -8,11 +8,18 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Autodesk.Revit.DB;
 using ProSheetsAddin.Models;
 using ProSheetsAddin.Managers;
+using MessageBox = System.Windows.MessageBox;
+using ComboBox = System.Windows.Controls.ComboBox;
+using TextBox = System.Windows.Controls.TextBox;
+using FolderBrowserDialog = System.Windows.Forms.FolderBrowserDialog;
+using WpfGrid = System.Windows.Controls.Grid;
+using WpfColor = System.Windows.Media.Color;
 
 namespace ProSheetsAddin.Views
 {
@@ -69,6 +76,58 @@ namespace ProSheetsAddin.Views
             }
         }
 
+        // Properties for Create tab
+        private string _outputFolder;
+        public string OutputFolder
+        {
+            get => _outputFolder;
+            set
+            {
+                _outputFolder = value;
+                OnPropertyChanged(nameof(OutputFolder));
+            }
+        }
+
+        public ObservableCollection<object> SelectedItemsForExport
+        {
+            get
+            {
+                var selectedItems = new ObservableCollection<object>();
+                
+                // Add selected sheets
+                if (Sheets != null)
+                {
+                    foreach (var sheet in Sheets.Where(s => s.IsSelected))
+                    {
+                        selectedItems.Add(new
+                        {
+                            Number = sheet.SheetNumber,
+                            Name = sheet.SheetName,
+                            CustomFileName = sheet.CustomFileName,
+                            Type = "Sheet"
+                        });
+                    }
+                }
+                
+                // Add selected views
+                if (Views != null)
+                {
+                    foreach (var view in Views.Where(v => v.IsSelected))
+                    {
+                        selectedItems.Add(new
+                        {
+                            Number = view.ViewType,
+                            Name = view.ViewName,
+                            CustomFileName = view.CustomFileName,
+                            Type = "View"
+                        });
+                    }
+                }
+                
+                return selectedItems;
+            }
+        }
+
         // INotifyPropertyChanged implementation
         public event PropertyChangedEventHandler PropertyChanged;
         
@@ -108,8 +167,15 @@ namespace ProSheetsAddin.Views
             ExportSettings = new ExportSettings();
             WriteDebugLog("ExportSettings initialized");
             
+            // Initialize output folder to Desktop
+            OutputFolder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            WriteDebugLog($"Default output folder set to: {OutputFolder}");
+            
             InitializeComponent();
             WriteDebugLog("InitializeComponent completed");
+            
+            // Configure window for non-modal operation
+            ConfigureNonModalWindow();
             
             // Set DataContext for binding - should point to this window, not ExportSettings
             this.DataContext = this;
@@ -121,6 +187,48 @@ namespace ProSheetsAddin.Views
             UpdateFormatSelection();
             
             WriteDebugLog("===== EXPORT + CONSTRUCTOR COMPLETED SUCCESSFULLY =====");
+        }
+
+        private void ConfigureNonModalWindow()
+        {
+            try
+            {
+                // Configure window to work well as non-modal
+                this.ShowInTaskbar = true;
+                this.Topmost = false;
+                this.WindowState = WindowState.Normal;
+                
+                // Handle window closing event
+                this.Closing += ProSheetsMainWindow_Closing;
+                
+                // Handle window activated/deactivated for better UX
+                this.Activated += ProSheetsMainWindow_Activated;
+                this.Deactivated += ProSheetsMainWindow_Deactivated;
+                
+                WriteDebugLog("Non-modal window configuration completed");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error configuring non-modal window: {ex.Message}");
+            }
+        }
+
+        private void ProSheetsMainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            WriteDebugLog("ProSheets window is closing");
+            // Don't prevent closing, but log it
+        }
+
+        private void ProSheetsMainWindow_Activated(object sender, EventArgs e)
+        {
+            WriteDebugLog("ProSheets window activated");
+            // Window brought to front - could refresh data if needed
+        }
+
+        private void ProSheetsMainWindow_Deactivated(object sender, EventArgs e)
+        {
+            WriteDebugLog("ProSheets window deactivated");
+            // Window lost focus - user might be working in Revit
         }
 
         // DllImport for OutputDebugStringA to work with DebugView
@@ -210,6 +318,7 @@ namespace ProSheetsAddin.Views
                     
                     var sheetItem = new SheetItem
                     {
+                        Id = sheet.Id,
                         IsSelected = false,
                         SheetNumber = sheet.SheetNumber ?? "NO_NUMBER",
                         SheetName = sheet.Name ?? "NO_NAME",
@@ -218,12 +327,14 @@ namespace ProSheetsAddin.Views
                         CustomFileName = $"{sheet.SheetNumber ?? "UNKNOWN"}_{(sheet.Name ?? "UNKNOWN").Replace(" ", "_")}"
                     };
                     
+                    WriteDebugLog($"Created SheetItem: Number='{sheetItem.SheetNumber}', Name='{sheetItem.SheetName}'");
+                    
                     // Subscribe to PropertyChanged to track selection changes
                     sheetItem.PropertyChanged += (s, e) => 
                     {
                         if (e.PropertyName == "IsSelected")
                         {
-                            WriteDebugLog($"Sheet selection changed: {sheetItem.Number} -> {sheetItem.IsSelected}");
+                            WriteDebugLog($"Sheet selection changed: {sheetItem.SheetNumber} -> {sheetItem.IsSelected}");
                             UpdateStatusText();
                             UpdateExportSummary();
                         }
@@ -285,7 +396,8 @@ namespace ProSheetsAddin.Views
                         if (e.PropertyName == "IsSelected")
                         {
                             WriteDebugLog($"View selection changed: {viewItem.ViewName} -> {viewItem.IsSelected}");
-                            UpdateViewStatusText();
+                            UpdateStatusText();
+                            UpdateExportSummary();
                         }
                     };
                     
@@ -300,7 +412,7 @@ namespace ProSheetsAddin.Views
                 Views = newViews;
                 WriteDebugLog("Views property updated - DataBinding should refresh");
                 
-                UpdateViewStatusText();
+                UpdateStatusText();
                 WriteDebugLog($"LoadViews completed successfully - Total views loaded: {Views?.Count ?? 0}");
             }
             catch (Exception ex)
@@ -316,22 +428,97 @@ namespace ProSheetsAddin.Views
             var selectedCount = Views?.Count(v => v.IsSelected) ?? 0;
             var totalCount = Views?.Count ?? 0;
             WriteDebugLog($"[Export +] UpdateViewStatusText called - Selected: {selectedCount}, Total: {totalCount}");
+            UpdateCreateTabSummary();
         }
 
         private void UpdateStatusText()
         {
-            var selectedCount = Sheets?.Count(s => s.IsSelected) ?? 0;
-            var totalCount = Sheets?.Count ?? 0;
-            WriteDebugLog($"[Export +] UpdateStatusText called - Selected: {selectedCount}, Total: {totalCount}");
+            var selectedSheetsCount = Sheets?.Count(s => s.IsSelected) ?? 0;
+            var totalSheetsCount = Sheets?.Count ?? 0;
+            var selectedViewsCount = Views?.Count(v => v.IsSelected) ?? 0;
+            var totalViewsCount = Views?.Count ?? 0;
             
-            // Update window title to show status
+            WriteDebugLog($"[Export +] UpdateStatusText called - Sheets: {selectedSheetsCount}/{totalSheetsCount}, Views: {selectedViewsCount}/{totalViewsCount}");
+            
+            // Update status text controls
             try
             {
-                this.Title = $"Export + - {selectedCount} of {totalCount} sheets selected";
+                // Update sheet count text
+                if (SheetsCountText != null)
+                {
+                    SheetsCountText.Text = $"{selectedSheetsCount} sheets selected";
+                }
+                
+                // Update views count text  
+                if (ViewsCountText != null)
+                {
+                    ViewsCountText.Text = $"{selectedViewsCount} views selected";
+                }
+                
+                // Update total items text
+                if (TotalItemsText != null)
+                {
+                    var totalItemsCount = totalSheetsCount + totalViewsCount;
+                    TotalItemsText.Text = $"Total: {totalItemsCount} items";
+                }
+                
+                var totalSelected = selectedSheetsCount + selectedViewsCount;
+                var totalItemsForTitle = totalSheetsCount + totalViewsCount;
+                this.Title = $"Export + - {totalSelected} of {totalItemsForTitle} items selected ({selectedSheetsCount} sheets, {selectedViewsCount} views)";
             }
             catch (Exception ex)
             {
-                WriteDebugLog($"Error updating window title: {ex.Message}");
+                WriteDebugLog($"Error updating status controls: {ex.Message}");
+            }
+            
+            UpdateCreateTabSummary();
+        }
+
+        private void UpdateCreateTabSummary()
+        {
+            try
+            {
+                // Update selection summary
+                var sheetsSelected = Sheets?.Count(s => s.IsSelected) ?? 0;
+                var viewsSelected = Views?.Count(v => v.IsSelected) ?? 0;
+                var totalSelected = sheetsSelected + viewsSelected;
+                
+                if (SelectionSummaryText != null)
+                {
+                    if (totalSelected == 0)
+                    {
+                        SelectionSummaryText.Text = "No items selected";
+                    }
+                    else
+                    {
+                        var items = new List<string>();
+                        if (sheetsSelected > 0) items.Add($"{sheetsSelected} sheet{(sheetsSelected > 1 ? "s" : "")}");
+                        if (viewsSelected > 0) items.Add($"{viewsSelected} view{(viewsSelected > 1 ? "s" : "")}");
+                        SelectionSummaryText.Text = $"{totalSelected} item{(totalSelected > 1 ? "s" : "")} selected: {string.Join(", ", items)}";
+                    }
+                }
+                
+                // Update format summary
+                if (FormatSummaryText != null)
+                {
+                    var formats = new List<string>();
+                    if (ExportSettings?.IsPdfSelected == true) formats.Add("PDF");
+                    if (ExportSettings?.IsDwgSelected == true) formats.Add("DWG");
+                    // Note: Replace IsImageSelected with correct property when available
+                    // if (ExportSettings?.IsImageSelected == true) formats.Add("Image");
+                    if (ExportSettings?.IsIfcSelected == true) formats.Add("IFC");
+                    
+                    FormatSummaryText.Text = formats.Any() ? string.Join(", ", formats) : "No formats selected";
+                }
+                
+                // Refresh SelectedItemsForExport binding
+                OnPropertyChanged(nameof(SelectedItemsForExport));
+                
+                WriteDebugLog($"Create tab summary updated: {totalSelected} items, formats updated");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error updating Create tab summary: {ex.Message}");
             }
         }
 
@@ -638,7 +825,7 @@ Tiếp tục xuất file?";
         private void ViewsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             WriteDebugLog("[ProSheets] Views DataGrid selection changed");
-            UpdateViewStatusText();
+            UpdateStatusText();
         }
 
         private void ViewSheetSetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -647,14 +834,9 @@ Tiếp tục xuất file?";
             if (combo?.SelectedItem is ComboBoxItem item)
             {
                 WriteDebugLog($"View/Sheet Set changed to: {item.Content}");
-                // TODO: Filter sheets based on selected set
+                // Auto-filter when selection changes
+                FilterSheetsBySet(item.Content.ToString());
             }
-        }
-
-        private void FilterByVSSet_Click(object sender, RoutedEventArgs e)
-        {
-            WriteDebugLog("Filter by View/Sheet Set clicked");
-            // TODO: Implement filtering logic
         }
 
         private void SaveVSSet_Click(object sender, RoutedEventArgs e)
@@ -1056,19 +1238,146 @@ Tiếp tục xuất file?";
         private void ExportButton_Click(object sender, RoutedEventArgs e)
         {
             WriteDebugLog("Export button clicked");
-            // Export functionality
             try
             {
                 WriteDebugLog("Starting export process...");
+                
                 var selectedSheets = _sheets?.Where(s => s.IsSelected).ToList() ?? new List<SheetItem>();
-                if (selectedSheets.Count == 0)
+                var selectedViews = _views?.Where(v => v.IsSelected).ToList() ?? new List<ViewItem>();
+                var totalSelected = selectedSheets.Count + selectedViews.Count;
+                
+                if (totalSelected == 0)
                 {
-                    MessageBox.Show("Vui lòng chọn ít nhất 1 sheet để export!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Vui lòng chọn ít nhất 1 sheet hoặc view để export!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
-                WriteDebugLog($"Exporting {selectedSheets.Count} sheets");
-                MessageBox.Show($"Sẽ export {selectedSheets.Count} sheets. Tính năng export đầy đủ sẽ được implement sau.", "Export Preview", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                WriteDebugLog($"Exporting {selectedSheets.Count} sheets and {selectedViews.Count} views");
+
+                // Get output folder
+                string outputFolder = OutputFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                if (!Directory.Exists(outputFolder))
+                {
+                    Directory.CreateDirectory(outputFolder);
+                }
+
+                // Get selected formats
+                var formats = ExportSettings?.GetSelectedFormatsList() ?? new List<string>();
+                if (!formats.Any())
+                {
+                    MessageBox.Show("Vui lòng chọn ít nhất 1 format để export!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                WriteDebugLog($"Selected formats: {string.Join(", ", formats)}");
+
+                bool exportSuccess = false;
+                var exportResults = new List<string>();
+
+                // Export PDF
+                if (ExportSettings.IsPdfSelected && selectedSheets.Any())
+                {
+                    try
+                    {
+                        var pdfManager = new PDFExportManager(_document);
+                        var viewSheets = selectedSheets.Select(s => _document.GetElement(s.Id) as ViewSheet).Where(vs => vs != null).ToList();
+                        bool pdfResult = pdfManager.ExportSheetsToPDF(viewSheets, outputFolder, ExportSettings);
+                        exportResults.Add($"PDF: {(pdfResult ? "Success" : "Failed")}");
+                        exportSuccess |= pdfResult;
+                        WriteDebugLog($"PDF export: {(pdfResult ? "Success" : "Failed")}");
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteDebugLog($"PDF export error: {ex.Message}");
+                        exportResults.Add($"PDF: Failed ({ex.Message})");
+                    }
+                }
+
+                // Export DWG
+                if (ExportSettings.IsDwgSelected && selectedSheets.Any())
+                {
+                    try
+                    {
+                        var dwgManager = new DWGExportManager(_document);
+                        var viewSheets = selectedSheets.Select(s => _document.GetElement(s.Id) as ViewSheet).Where(vs => vs != null).ToList();
+                        var dwgSettings = new PSDWGExportSettings { OutputFolder = outputFolder };
+                        bool dwgResult = dwgManager.ExportToDWG(viewSheets, dwgSettings);
+                        exportResults.Add($"DWG: {(dwgResult ? "Success" : "Failed")}");
+                        exportSuccess |= dwgResult;
+                        WriteDebugLog($"DWG export: {(dwgResult ? "Success" : "Failed")}");
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteDebugLog($"DWG export error: {ex.Message}");
+                        exportResults.Add($"DWG: Failed ({ex.Message})");
+                    }
+                }
+
+                // Export IFC
+                if (ExportSettings.IsIfcSelected)
+                {
+                    try
+                    {
+                        var ifcManager = new IFCExportManager();
+                        var viewSheets = selectedSheets.Select(s => _document.GetElement(s.Id) as ViewSheet).Where(vs => vs != null).ToList();
+                        var ifcSettings = new PSIFCExportSettings { OutputFolder = outputFolder };
+                        ifcManager.ExportToIFC(viewSheets, ifcSettings);
+                        exportResults.Add($"IFC: Success");
+                        exportSuccess = true;
+                        WriteDebugLog($"IFC export: Success");
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteDebugLog($"IFC export error: {ex.Message}");
+                        exportResults.Add($"IFC: Failed ({ex.Message})");
+                    }
+                }
+
+                // Export Navisworks
+                if (ExportSettings.IsNwcSelected)
+                {
+                    try
+                    {
+                        var nwcManager = new NavisworksExportManager(_document);
+                        bool nwcResult = false;
+                        
+                        if (selectedViews.Any())
+                        {
+                            nwcResult = nwcManager.ExportToNavisworks(selectedViews, outputFolder);
+                        }
+                        else if (selectedSheets.Any())
+                        {
+                            nwcResult = nwcManager.ExportSheetsReference(selectedSheets, outputFolder);
+                        }
+                        
+                        exportResults.Add($"Navisworks: {(nwcResult ? "Success" : "Failed")}");
+                        exportSuccess |= nwcResult;
+                        WriteDebugLog($"Navisworks export: {(nwcResult ? "Success" : "Failed")}");
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteDebugLog($"Navisworks export error: {ex.Message}");
+                        exportResults.Add($"Navisworks: Failed ({ex.Message})");
+                    }
+                }
+
+                // Show results
+                if (exportSuccess)
+                {
+                    var successMessage = $"Export hoàn tất!\n\n" +
+                                       $"Items: {totalSelected} ({selectedSheets.Count} sheets, {selectedViews.Count} views)\n" +
+                                       $"Output: {outputFolder}\n\n" +
+                                       $"Results:\n{string.Join("\n", exportResults)}";
+                    
+                    MessageBox.Show(successMessage, "Export Successful", MessageBoxButton.OK, MessageBoxImage.Information);
+                    WriteDebugLog("Export completed successfully");
+                }
+                else
+                {
+                    MessageBox.Show($"Export failed or no files were exported.\n\nResults:\n{string.Join("\n", exportResults)}", 
+                                   "Export Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    WriteDebugLog("Export failed or no files exported");
+                }
             }
             catch (Exception ex)
             {
@@ -1170,7 +1479,755 @@ Tiếp tục xuất file?";
 
         #endregion
 
+        #region Create Tab Event Handlers
 
+        private void BrowseOutputFolder_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Browse output folder clicked");
+            try
+            {
+                var dialog = new System.Windows.Forms.FolderBrowserDialog
+                {
+                    Description = "Chọn thư mục xuất file",
+                    SelectedPath = OutputFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                    ShowNewFolderButton = true
+                };
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    OutputFolder = dialog.SelectedPath;
+                    WriteDebugLog($"Output folder selected: {OutputFolder}");
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error browsing output folder: {ex.Message}");
+                MessageBox.Show($"Lỗi chọn thư mục: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void CreateFiles_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Create Files clicked");
+            try
+            {
+                // Validate selections
+                var sheetsSelected = Sheets?.Count(s => s.IsSelected) ?? 0;
+                var viewsSelected = Views?.Count(v => v.IsSelected) ?? 0;
+                var totalSelected = sheetsSelected + viewsSelected;
+
+                if (totalSelected == 0)
+                {
+                    MessageBox.Show("Vui lòng chọn ít nhất một sheet hoặc view để xuất.", 
+                                   "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(OutputFolder) || !Directory.Exists(OutputFolder))
+                {
+                    MessageBox.Show("Vui lòng chọn thư mục xuất hợp lệ.", 
+                                   "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Check if any format is selected
+                var hasFormat = (ExportSettings?.IsPdfSelected == true) ||
+                               (ExportSettings?.IsDwgSelected == true) ||
+                               // (ExportSettings?.IsImageSelected == true) ||  // Remove until property exists
+                               (ExportSettings?.IsIfcSelected == true);
+
+                if (!hasFormat)
+                {
+                    MessageBox.Show("Vui lòng chọn ít nhất một định dạng xuất.", 
+                                   "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Show confirmation dialog
+                var message = $"Bạn sắp xuất {totalSelected} item(s) ";
+                if (sheetsSelected > 0 && viewsSelected > 0)
+                {
+                    message += $"({sheetsSelected} sheet(s) và {viewsSelected} view(s)) ";
+                }
+                else if (sheetsSelected > 0)
+                {
+                    message += $"({sheetsSelected} sheet(s)) ";
+                }
+                else
+                {
+                    message += $"({viewsSelected} view(s)) ";
+                }
+                message += $"vào thư mục:\n{OutputFolder}\n\nTiếp tục?";
+
+                var result = MessageBox.Show(message, "Xác nhận xuất file", 
+                                           MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    // Call the existing export method
+                    WriteDebugLog("Starting export process from Create tab");
+                    ExportButton_Click(sender, e); // Call existing export logic
+                }
+                else
+                {
+                    WriteDebugLog("User cancelled export from Create tab");
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error in CreateFiles_Click: {ex.Message}");
+                MessageBox.Show($"Lỗi xuất file: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        #endregion
+
+        #region Enhanced UI Event Handlers
+
+        private void FilterByVSSet_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Filter by View/Sheet Set clicked");
+            try
+            {
+                if (ViewSheetSetCombo?.SelectedItem is ComboBoxItem selectedItem)
+                {
+                    string selectedSet = selectedItem.Content.ToString();
+                    WriteDebugLog($"Filtering by: {selectedSet}");
+                    
+                    if (selectedSet == "<None>")
+                    {
+                        // Show all items
+                        LoadSheets();
+                        LoadViews();
+                    }
+                    else
+                    {
+                        // Filter based on selected set
+                        FilterSheetsBySet(selectedSet);
+                    }
+                    
+                    MessageBox.Show($"Filtered by {selectedSet}", "Filter Applied", 
+                                   MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error in FilterByVSSet_Click: {ex.Message}");
+                MessageBox.Show($"Lỗi khi lọc: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ResetFilter_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Reset filter clicked");
+            try
+            {
+                // Reset ComboBox to <None>
+                if (ViewSheetSetCombo?.Items.Count > 0)
+                {
+                    ViewSheetSetCombo.SelectedIndex = 0; // Select "<None>"
+                }
+                
+                // Reload all data
+                LoadSheets();
+                LoadViews();
+                
+                MessageBox.Show("Filter reset - showing all items", "Filter Reset", 
+                               MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error in ResetFilter_Click: {ex.Message}");
+                MessageBox.Show($"Lỗi khi reset filter: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SetCustomFileName_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Set Custom File Name clicked");
+            try
+            {
+                if (sender is Button button && button.Tag is SheetItem sheetItem)
+                {
+                    // Create a simple parameter selection dialog
+                    var parameterDialog = new ParameterSelectionDialog(_document, sheetItem);
+                    if (parameterDialog.ShowDialog() == true)
+                    {
+                        string newFileName = parameterDialog.GeneratedFileName;
+                        if (!string.IsNullOrEmpty(newFileName))
+                        {
+                            sheetItem.CustomFileName = newFileName;
+                            WriteDebugLog($"Custom file name set to: {newFileName}");
+                        }
+                    }
+                }
+                else if (sender is Button buttonView && buttonView.Tag is ViewItem viewItem)
+                {
+                    // Handle view item parameter selection
+                    var parameterDialog = new ParameterSelectionDialog(_document, viewItem);
+                    if (parameterDialog.ShowDialog() == true)
+                    {
+                        string newFileName = parameterDialog.GeneratedFileName;
+                        if (!string.IsNullOrEmpty(newFileName))
+                        {
+                            viewItem.CustomFileName = newFileName;
+                            WriteDebugLog($"Custom file name set for view: {newFileName}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error in SetCustomFileName_Click: {ex.Message}");
+                MessageBox.Show($"Lỗi khi set custom file name: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SetAllCustomFileName_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Set All Custom File Name clicked");
+            try
+            {
+                // Determine which items are currently visible
+                var targetItems = new List<object>();
+                bool isSheetMode = SheetsRadio?.IsChecked == true;
+                
+                if (isSheetMode)
+                {
+                    // Get selected sheets first, if none selected then get all sheets
+                    var selectedSheets = Sheets?.Where(s => s.IsSelected).ToList() ?? new List<SheetItem>();
+                    if (selectedSheets.Any())
+                    {
+                        targetItems.AddRange(selectedSheets);
+                        WriteDebugLog($"Found {selectedSheets.Count} selected sheets");
+                    }
+                    else
+                    {
+                        // No sheets selected, apply to all sheets
+                        var allSheets = Sheets?.ToList() ?? new List<SheetItem>();
+                        targetItems.AddRange(allSheets);
+                        WriteDebugLog($"No sheets selected, applying to all {targetItems.Count} sheets");
+                    }
+                }
+                else if (ViewsRadio?.IsChecked == true)
+                {
+                    // Get selected views first, if none selected then get all views
+                    var selectedViews = Views?.Where(v => v.IsSelected).ToList() ?? new List<ViewItem>();
+                    if (selectedViews.Any())
+                    {
+                        targetItems.AddRange(selectedViews);
+                        WriteDebugLog($"Found {selectedViews.Count} selected views");
+                    }
+                    else
+                    {
+                        // No views selected, apply to all views
+                        var allViews = Views?.ToList() ?? new List<ViewItem>();
+                        targetItems.AddRange(allViews);
+                        WriteDebugLog($"No views selected, applying to all {targetItems.Count} views");
+                    }
+                }
+
+                if (!targetItems.Any())
+                {
+                    MessageBox.Show("No sheets or views available to configure.", 
+                                   "No Items", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Use the first item to get available parameters
+                var firstItem = targetItems.First();
+                var parameterDialog = new ParameterSelectionDialog(_document, firstItem);
+                
+                string actionDescription = isSheetMode ? "sheets" : "views";
+                bool hasSelection = false;
+                
+                if (isSheetMode)
+                {
+                    hasSelection = Sheets?.Any(s => s.IsSelected) == true;
+                }
+                else
+                {
+                    hasSelection = Views?.Any(v => v.IsSelected) == true;
+                }
+                
+                string message = hasSelection 
+                    ? $"Configure custom filename for {targetItems.Count} selected {actionDescription}?"
+                    : $"No items selected. Configure custom filename for ALL {targetItems.Count} {actionDescription}?";
+                    
+                var result = MessageBox.Show(message, "Confirm Action", 
+                                           MessageBoxButton.YesNo, MessageBoxImage.Question);
+                
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+                
+                if (parameterDialog.ShowDialog() == true)
+                {
+                    string pattern = parameterDialog.GeneratedFileName;
+                    if (!string.IsNullOrEmpty(pattern))
+                    {
+                        int updatedCount = 0;
+                        
+                        // Apply the pattern to all target items
+                        foreach (var item in targetItems)
+                        {
+                            try
+                            {
+                                if (item is SheetItem sheet)
+                                {
+                                    // Generate filename based on sheet's parameters
+                                    var sheetDialog = new ParameterSelectionDialog(_document, sheet);
+                                    string fileName = sheetDialog.GenerateFilename(pattern, sheet);
+                                    sheet.CustomFileName = fileName;
+                                    updatedCount++;
+                                    WriteDebugLog($"Set custom filename for sheet {sheet.SheetNumber}: {fileName}");
+                                }
+                                else if (item is ViewItem view)
+                                {
+                                    // Generate filename based on view's parameters
+                                    var viewDialog = new ParameterSelectionDialog(_document, view);
+                                    string fileName = viewDialog.GenerateFilename(pattern, view);
+                                    view.CustomFileName = fileName;
+                                    updatedCount++;
+                                    WriteDebugLog($"Set custom filename for view {view.ViewName}: {fileName}");
+                                }
+                            }
+                            catch (Exception itemEx)
+                            {
+                                WriteDebugLog($"Error setting filename for item: {itemEx.Message}");
+                            }
+                        }
+                        
+                        // Force UI update
+                        if (isSheetMode && SheetsDataGrid != null)
+                        {
+                            SheetsDataGrid.Items.Refresh();
+                        }
+                        else if (ViewsDataGrid != null)
+                        {
+                            ViewsDataGrid.Items.Refresh();
+                        }
+                        
+                        WriteDebugLog($"Applied custom filename pattern to {updatedCount} items");
+                        MessageBox.Show($"Custom filename pattern applied to {updatedCount} {actionDescription} successfully!\n\nPattern: {pattern}", 
+                                       "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error in SetAllCustomFileName_Click: {ex.Message}");
+                MessageBox.Show($"Error setting custom filename: {ex.Message}", 
+                               "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void FilterSheetsBySet(string setName)
+        {
+            WriteDebugLog($"Filtering sheets by set: {setName}");
+            
+            try
+            {
+                // Get current sheets from the existing Sheets collection
+                var allSheets = Sheets ?? new ObservableCollection<SheetItem>();
+                var filteredSheets = new ObservableCollection<SheetItem>();
+                
+                foreach (var sheet in allSheets)
+                {
+                    bool includeSheet = false;
+                    
+                    // Filter based on sheet categorization
+                    switch (setName.ToUpper())
+                    {
+                        case "ARCHITECTURAL":
+                            includeSheet = IsArchitecturalSheet(sheet);
+                            break;
+                        case "STRUCTURAL":
+                            includeSheet = IsStructuralSheet(sheet);
+                            break;
+                        case "MEP":
+                            includeSheet = IsMEPSheet(sheet);
+                            break;
+                        case "ALL SHEETS":
+                        case "<NONE>":
+                        default:
+                            includeSheet = true;
+                            break;
+                    }
+                    
+                    if (includeSheet)
+                    {
+                        filteredSheets.Add(sheet);
+                    }
+                }
+                
+                Sheets = filteredSheets;
+                WriteDebugLog($"Filtered to {filteredSheets.Count} sheets");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error filtering sheets: {ex.Message}");
+            }
+        }
+
+        private bool IsArchitecturalSheet(SheetItem sheet)
+        {
+            // Simple logic based on sheet number or name patterns
+            string number = sheet.SheetNumber?.ToUpper() ?? "";
+            string name = sheet.SheetName?.ToUpper() ?? "";
+            
+            return number.StartsWith("A") || 
+                   name.Contains("ARCHITECTURAL") || 
+                   name.Contains("FLOOR PLAN") ||
+                   name.Contains("ELEVATION") ||
+                   name.Contains("SECTION");
+        }
+
+        private bool IsStructuralSheet(SheetItem sheet)
+        {
+            string number = sheet.SheetNumber?.ToUpper() ?? "";
+            string name = sheet.SheetName?.ToUpper() ?? "";
+            
+            return number.StartsWith("S") || 
+                   name.Contains("STRUCTURAL") || 
+                   name.Contains("FOUNDATION") ||
+                   name.Contains("FRAMING");
+        }
+
+        private bool IsMEPSheet(SheetItem sheet)
+        {
+            string number = sheet.SheetNumber?.ToUpper() ?? "";
+            string name = sheet.SheetName?.ToUpper() ?? "";
+            
+            return number.StartsWith("M") || 
+                   number.StartsWith("E") ||
+                   number.StartsWith("P") ||
+                   name.Contains("MECHANICAL") || 
+                   name.Contains("ELECTRICAL") ||
+                   name.Contains("PLUMBING") ||
+                   name.Contains("MEP");
+        }
+
+        #endregion
 
     }
+
+    #region Parameter Selection Dialog
+
+    public class ParameterSelectionDialog : Window
+    {
+        private readonly Document _document;
+        private readonly object _item;
+        private ComboBox _parameterCombo;
+        private TextBox _previewTextBox;
+        private CheckBox _includeRevisionCheck;
+        private CheckBox _includeSheetNumberCheck;
+        private CheckBox _includeSheetNameCheck;
+        
+        public string GeneratedFileName { get; private set; }
+
+        public ParameterSelectionDialog(Document document, object item)
+        {
+            _document = document;
+            _item = item;
+            
+            Title = "Set Custom File Name from Parameters";
+            Width = 500;
+            Height = 400;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            
+            InitializeDialog();
+        }
+
+        private void InitializeDialog()
+        {
+            var grid = new WpfGrid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            
+            grid.Margin = new Thickness(20, 20, 20, 20);
+
+            // Title
+            var titleBlock = new TextBlock
+            {
+                Text = "Configure Custom File Name",
+                FontSize = 16,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+            WpfGrid.SetRow(titleBlock, 0);
+            grid.Children.Add(titleBlock);
+
+            // Include options
+            _includeSheetNumberCheck = new CheckBox
+            {
+                Content = "Include Sheet Number",
+                IsChecked = true,
+                Margin = new Thickness(0, 5, 0, 5)
+            };
+            _includeSheetNumberCheck.Checked += UpdatePreview;
+            _includeSheetNumberCheck.Unchecked += UpdatePreview;
+            WpfGrid.SetRow(_includeSheetNumberCheck, 1);
+            grid.Children.Add(_includeSheetNumberCheck);
+
+            _includeSheetNameCheck = new CheckBox
+            {
+                Content = "Include Sheet Name",
+                IsChecked = true,
+                Margin = new Thickness(0, 5, 0, 5)
+            };
+            _includeSheetNameCheck.Checked += UpdatePreview;
+            _includeSheetNameCheck.Unchecked += UpdatePreview;
+            WpfGrid.SetRow(_includeSheetNameCheck, 2);
+            grid.Children.Add(_includeSheetNameCheck);
+
+            _includeRevisionCheck = new CheckBox
+            {
+                Content = "Include Revision",
+                IsChecked = false,
+                Margin = new Thickness(0, 5, 0, 5)
+            };
+            _includeRevisionCheck.Checked += UpdatePreview;
+            _includeRevisionCheck.Unchecked += UpdatePreview;
+            WpfGrid.SetRow(_includeRevisionCheck, 3);
+            grid.Children.Add(_includeRevisionCheck);
+
+            // Parameter selection
+            var paramLabel = new TextBlock
+            {
+                Text = "Additional Parameter:",
+                Margin = new Thickness(0, 15, 0, 5)
+            };
+            WpfGrid.SetRow(paramLabel, 4);
+            grid.Children.Add(paramLabel);
+
+            _parameterCombo = new ComboBox
+            {
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+            _parameterCombo.SelectionChanged += UpdatePreview;
+            LoadAvailableParameters();
+            WpfGrid.SetRow(_parameterCombo, 5);
+            grid.Children.Add(_parameterCombo);
+
+            // Preview
+            var previewLabel = new TextBlock
+            {
+                Text = "Preview:",
+                Margin = new Thickness(0, 10, 0, 5)
+            };
+            WpfGrid.SetRow(previewLabel, 6);
+            grid.Children.Add(previewLabel);
+
+            _previewTextBox = new TextBox
+            {
+                IsReadOnly = true,
+                Background = new SolidColorBrush(WpfColor.FromRgb(248, 248, 248)),
+                Margin = new Thickness(0, 0, 0, 15)
+            };
+            WpfGrid.SetRow(_previewTextBox, 6);
+            grid.Children.Add(_previewTextBox);
+
+            // Buttons
+            var buttonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+
+            var okButton = new Button
+            {
+                Content = "OK",
+                Width = 80,
+                Height = 30,
+                Margin = new Thickness(0, 0, 10, 0),
+                IsDefault = true
+            };
+            okButton.Click += OkButton_Click;
+
+            var cancelButton = new Button
+            {
+                Content = "Cancel",
+                Width = 80,
+                Height = 30,
+                IsCancel = true
+            };
+
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            WpfGrid.SetRow(buttonPanel, 7);
+            grid.Children.Add(buttonPanel);
+
+            Content = grid;
+            
+            // Initial preview update
+            UpdatePreview(null, null);
+        }
+
+        private void LoadAvailableParameters()
+        {
+            _parameterCombo.Items.Add("<None>");
+            _parameterCombo.Items.Add("Project Number");
+            _parameterCombo.Items.Add("Project Name");
+            _parameterCombo.Items.Add("Current Date");
+            _parameterCombo.Items.Add("Sheet Issue Date");
+            _parameterCombo.SelectedIndex = 0;
+        }
+
+        private void UpdatePreview(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var parts = new List<string>();
+
+                if (_includeSheetNumberCheck?.IsChecked == true && _item is SheetItem sheet)
+                {
+                    parts.Add(sheet.SheetNumber);
+                }
+
+                if (_includeSheetNameCheck?.IsChecked == true && _item is SheetItem sheetForName)
+                {
+                    // Clean sheet name for filename
+                    string cleanName = CleanFileName(sheetForName.SheetName);
+                    parts.Add(cleanName);
+                }
+
+                if (_includeRevisionCheck?.IsChecked == true && _item is SheetItem sheetForRev)
+                {
+                    parts.Add($"Rev{sheetForRev.Revision ?? "A"}");
+                }
+
+                if (_parameterCombo?.SelectedItem?.ToString() != "<None>")
+                {
+                    string paramValue = GetParameterValue(_parameterCombo.SelectedItem.ToString());
+                    if (!string.IsNullOrEmpty(paramValue))
+                    {
+                        parts.Add(CleanFileName(paramValue));
+                    }
+                }
+
+                GeneratedFileName = string.Join("_", parts.Where(p => !string.IsNullOrEmpty(p)));
+                
+                if (_previewTextBox != null)
+                {
+                    _previewTextBox.Text = GeneratedFileName;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (_previewTextBox != null)
+                {
+                    _previewTextBox.Text = $"Error: {ex.Message}";
+                }
+            }
+        }
+
+        private string GetParameterValue(string parameterName)
+        {
+            switch (parameterName)
+            {
+                case "Project Number":
+                    return _document.ProjectInformation.Number ?? "";
+                case "Project Name":
+                    return _document.ProjectInformation.Name ?? "";
+                case "Current Date":
+                    return DateTime.Now.ToString("yyyyMMdd");
+                case "Sheet Issue Date":
+                    return DateTime.Now.ToString("yyyyMMdd");
+                default:
+                    return "";
+            }
+        }
+
+        private string CleanFileName(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName)) return "";
+            
+            // Remove invalid characters and clean up
+            var invalidChars = Path.GetInvalidFileNameChars();
+            string cleaned = new string(fileName.Where(c => !invalidChars.Contains(c)).ToArray());
+            
+            // Replace spaces with underscores and limit length
+            cleaned = cleaned.Replace(" ", "_").Replace("-", "_");
+            
+            // Remove consecutive underscores
+            while (cleaned.Contains("__"))
+            {
+                cleaned = cleaned.Replace("__", "_");
+            }
+            
+            return cleaned.Trim('_').Substring(0, Math.Min(cleaned.Length, 50));
+        }
+
+        private void OkButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(GeneratedFileName))
+            {
+                MessageBox.Show("Please configure at least one parameter for the file name.", 
+                               "Invalid Configuration", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            
+            DialogResult = true;
+            Close();
+        }
+
+        // Method to generate filename for any item based on current dialog settings
+        public string GenerateFilename(string pattern, object item)
+        {
+            try
+            {
+                var parts = new List<string>();
+
+                if (_includeSheetNumberCheck?.IsChecked == true && item is SheetItem sheet)
+                {
+                    parts.Add(sheet.SheetNumber);
+                }
+                else if (item is ViewItem view)
+                {
+                    parts.Add(view.ViewType?.Replace(" ", "_"));
+                }
+
+                if (_includeSheetNameCheck?.IsChecked == true && item is SheetItem sheetForName)
+                {
+                    string cleanName = CleanFileName(sheetForName.SheetName);
+                    parts.Add(cleanName);
+                }
+                else if (item is ViewItem viewForName)
+                {
+                    string cleanName = CleanFileName(viewForName.ViewName);
+                    parts.Add(cleanName);
+                }
+
+                if (_includeRevisionCheck?.IsChecked == true && item is SheetItem sheetForRev)
+                {
+                    parts.Add($"Rev{sheetForRev.Revision ?? "A"}");
+                }
+
+                if (_parameterCombo?.SelectedItem?.ToString() != "<None>")
+                {
+                    string paramValue = GetParameterValue(_parameterCombo.SelectedItem.ToString());
+                    if (!string.IsNullOrEmpty(paramValue))
+                    {
+                        parts.Add(CleanFileName(paramValue));
+                    }
+                }
+
+                return string.Join("_", parts.Where(p => !string.IsNullOrEmpty(p)));
+            }
+            catch
+            {
+                return pattern; // Fallback to original pattern
+            }
+        }
+    }
+
+    #endregion
 }

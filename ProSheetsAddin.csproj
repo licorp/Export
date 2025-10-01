@@ -77,6 +77,7 @@
     <Compile Include="Managers\IFCExportManager.cs" />
     <Compile Include="Managers\ImageExportManager.cs" />
     <Compile Include="Managers\XMLExportManager.cs" />
+    <Compile Include="Managers\NavisworksExportManager.cs" />
     <Compile Include="Managers\PaperSizeManager.cs" />
     <Compile Include="Managers\ProfileManager.cs" />
     <Compile Include="Managers\DrawingTransmittalManager.cs" />
