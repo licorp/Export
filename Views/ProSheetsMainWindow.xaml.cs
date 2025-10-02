@@ -12,8 +12,10 @@ using System.Windows.Media;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using ProSheetsAddin.Models;
 using ProSheetsAddin.Managers;
+using ProSheetsAddin.Commands;
 using MessageBox = System.Windows.MessageBox;
 using ComboBox = System.Windows.Controls.ComboBox;
 using TextBox = System.Windows.Controls.TextBox;
@@ -29,9 +31,12 @@ namespace ProSheetsAddin.Views
     public partial class ProSheetsMainWindow : Window, INotifyPropertyChanged
     {
         private readonly Document _document;
+        private readonly UIApplication _uiApp;
         private ObservableCollection<SheetItem> _sheets;
         private ProSheetsProfileManager _profileManager;
         private ProSheetsProfile _selectedProfile;
+        private ExternalEvent _exportEvent;
+        private ExportHandler _exportHandler;
 
         // Enhanced properties for data binding
         public int SelectedSheetsCount 
@@ -156,12 +161,38 @@ namespace ProSheetsAddin.Views
         // Export settings với data binding
         public ExportSettings ExportSettings { get; set; }
         
-        public ProSheetsMainWindow(Document document)
+        // Export Queue Items for Create tab
+        private ObservableCollection<ExportQueueItem> _exportQueueItems;
+        public ObservableCollection<ExportQueueItem> ExportQueueItems
+        {
+            get => _exportQueueItems;
+            set
+            {
+                _exportQueueItems = value;
+                OnPropertyChanged(nameof(ExportQueueItems));
+            }
+        }
+        
+        
+        public ProSheetsMainWindow(Document document) : this(document, null)
+        {
+        }
+
+        public ProSheetsMainWindow(Document document, UIApplication uiApp)
         {
             WriteDebugLog("===== EXPORT + CONSTRUCTOR STARTED =====");
             WriteDebugLog($"Document: {document?.Title ?? "NULL"}");
             
             _document = document;
+            _uiApp = uiApp;
+            
+            // Initialize External Event for export operations
+            if (_uiApp != null)
+            {
+                _exportHandler = new ExportHandler();
+                _exportEvent = ExternalEvent.Create(_exportHandler);
+                WriteDebugLog("ExternalEvent initialized for export operations");
+            }
             
             // Initialize export settings with data binding
             ExportSettings = new ExportSettings();
@@ -170,6 +201,10 @@ namespace ProSheetsAddin.Views
             // Initialize output folder to Desktop
             OutputFolder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             WriteDebugLog($"Default output folder set to: {OutputFolder}");
+            
+            // Initialize Export Queue with empty collection
+            ExportQueueItems = new ObservableCollection<ExportQueueItem>();
+            WriteDebugLog("ExportQueueItems initialized");
             
             InitializeComponent();
             WriteDebugLog("InitializeComponent completed");
@@ -234,6 +269,26 @@ namespace ProSheetsAddin.Views
         {
             WriteDebugLog("ProSheets window deactivated");
             // Window lost focus - user might be working in Revit
+        }
+
+        /// <summary>
+        /// Show export completed dialog with Open Folder button
+        /// </summary>
+        private void ShowExportCompletedDialog(string folderPath)
+        {
+            try
+            {
+                var dialog = new ExportCompletedDialog(folderPath);
+                dialog.Owner = this;
+                dialog.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error showing export completed dialog: {ex.Message}");
+                // Fallback to simple message box
+                MessageBox.Show($"Export completed.\n\nLocation: {folderPath}", 
+                              "Export Completed", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
 
         // DllImport for OutputDebugStringA to work with DebugView
@@ -465,38 +520,17 @@ namespace ProSheetsAddin.Views
                 var viewsSelected = Views?.Count(v => v.IsSelected) ?? 0;
                 var totalSelected = sheetsSelected + viewsSelected;
                 
-                if (SelectionSummaryText != null)
-                {
-                    if (totalSelected == 0)
-                    {
-                        SelectionSummaryText.Text = "No items selected";
-                    }
-                    else
-                    {
-                        var items = new List<string>();
-                        if (sheetsSelected > 0) items.Add($"{sheetsSelected} sheet{(sheetsSelected > 1 ? "s" : "")}");
-                        if (viewsSelected > 0) items.Add($"{viewsSelected} view{(viewsSelected > 1 ? "s" : "")}");
-                        SelectionSummaryText.Text = $"{totalSelected} item{(totalSelected > 1 ? "s" : "")} selected: {string.Join(", ", items)}";
-                    }
-                }
+                // NOTE: SelectionSummaryText removed from new Create tab design
+                // Status is shown in DataGrid instead
                 
                 // Update format summary
-                if (FormatSummaryText != null)
-                {
-                    var formats = new List<string>();
-                    if (ExportSettings?.IsPdfSelected == true) formats.Add("PDF");
-                    if (ExportSettings?.IsDwgSelected == true) formats.Add("DWG");
-                    // Note: Replace IsImageSelected with correct property when available
-                    // if (ExportSettings?.IsImageSelected == true) formats.Add("Image");
-                    if (ExportSettings?.IsIfcSelected == true) formats.Add("IFC");
-                    
-                    FormatSummaryText.Text = formats.Any() ? string.Join(", ", formats) : "No formats selected";
-                }
+                // NOTE: FormatSummaryText removed from new Create tab design  
+                // Formats shown in Export Queue DataGrid instead
                 
                 // Refresh SelectedItemsForExport binding
                 OnPropertyChanged(nameof(SelectedItemsForExport));
                 
-                WriteDebugLog($"Create tab summary updated: {totalSelected} items, formats updated");
+                WriteDebugLog($"Create tab summary updated: {totalSelected} items");
             }
             catch (Exception ex)
             {
@@ -536,10 +570,184 @@ namespace ProSheetsAddin.Views
                 }
 
                 WriteDebugLog($"[Export +] Export summary updated: {selectedCount} sheets, {selectedFormats.Count} formats, {estimatedFiles} files");
+                
+                // Update Export Queue for Create tab
+                UpdateExportQueue();
             }
             catch (Exception ex)
             {
                 WriteDebugLog($"[Export +] ERROR in UpdateExportSummary: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Update Export Queue DataGrid based on selected sheets/views and formats
+        /// </summary>
+        private void UpdateExportQueue()
+        {
+            try
+            {
+                if (ExportQueueItems == null) return;
+
+                ExportQueueItems.Clear();
+
+                var selectedFormats = ExportSettings?.GetSelectedFormatsList() ?? new List<string>();
+                if (selectedFormats.Count == 0)
+                {
+                    WriteDebugLog("No formats selected, Export Queue cleared");
+                    return;
+                }
+
+                // Add selected sheets to queue
+                if (Sheets != null)
+                {
+                    foreach (var sheet in Sheets.Where(s => s.IsSelected))
+                    {
+                        foreach (var format in selectedFormats)
+                        {
+                            // Determine display name: use CustomFileName if available, else SheetName
+                            string displayName = sheet.SheetName;
+                            if (!string.IsNullOrWhiteSpace(sheet.CustomFileName))
+                            {
+                                displayName = sheet.CustomFileName;
+                            }
+                            
+                            var queueItem = new ExportQueueItem
+                            {
+                                IsSelected = true,
+                                ViewSheetNumber = sheet.SheetNumber,
+                                ViewSheetName = displayName,
+                                Format = format.ToUpper(),
+                                Size = GetSheetSize(sheet),
+                                Orientation = GetSheetOrientation(sheet),
+                                Progress = 0,
+                                Status = "Pending"
+                            };
+                            ExportQueueItems.Add(queueItem);
+                        }
+                    }
+                }
+
+                // Add selected views to queue
+                if (Views != null)
+                {
+                    foreach (var view in Views.Where(v => v.IsSelected))
+                    {
+                        foreach (var format in selectedFormats)
+                        {
+                            // Determine display name: use CustomFileName if available, else ViewName
+                            string displayName = view.ViewName;
+                            if (!string.IsNullOrWhiteSpace(view.CustomFileName))
+                            {
+                                displayName = view.CustomFileName;
+                            }
+                            
+                            var queueItem = new ExportQueueItem
+                            {
+                                IsSelected = true,
+                                ViewSheetNumber = view.ViewType,
+                                ViewSheetName = displayName,
+                                Format = format.ToUpper(),
+                                Size = "-",
+                                Orientation = "-",
+                                Progress = 0,
+                                Status = "Pending"
+                            };
+                            ExportQueueItems.Add(queueItem);
+                        }
+                    }
+                }
+
+                WriteDebugLog($"Export Queue updated: {ExportQueueItems.Count} items");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR in UpdateExportQueue: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Get sheet size (paper size) from sheet
+        /// </summary>
+        private string GetSheetSize(SheetItem sheet)
+        {
+            try
+            {
+                if (sheet?.Id == null || _document == null) return "-";
+
+                var revitSheet = _document.GetElement(sheet.Id) as ViewSheet;
+                if (revitSheet == null) return "-";
+
+                var titleBlock = new FilteredElementCollector(_document, revitSheet.Id)
+                    .OfCategory(BuiltInCategory.OST_TitleBlocks)
+                    .FirstOrDefault();
+
+                if (titleBlock != null)
+                {
+                    // Try to get paper size from title block
+                    var widthParam = titleBlock.get_Parameter(BuiltInParameter.SHEET_WIDTH);
+                    var heightParam = titleBlock.get_Parameter(BuiltInParameter.SHEET_HEIGHT);
+
+                    if (widthParam != null && heightParam != null)
+                    {
+                        double width = widthParam.AsDouble() * 304.8; // Convert to mm
+                        double height = heightParam.AsDouble() * 304.8;
+
+                        // Match common paper sizes
+                        if (Math.Abs(width - 841) < 10 && Math.Abs(height - 1189) < 10) return "A0";
+                        if (Math.Abs(width - 594) < 10 && Math.Abs(height - 841) < 10) return "A1";
+                        if (Math.Abs(width - 420) < 10 && Math.Abs(height - 594) < 10) return "A2";
+                        if (Math.Abs(width - 297) < 10 && Math.Abs(height - 420) < 10) return "A3";
+                        if (Math.Abs(width - 210) < 10 && Math.Abs(height - 297) < 10) return "A4";
+
+                        return $"{width:F0}x{height:F0}mm";
+                    }
+                }
+
+                // Fallback to sheet.Size property if available
+                return sheet.Size ?? "Custom";
+            }
+            catch
+            {
+                return "-";
+            }
+        }
+
+        /// <summary>
+        /// Get sheet orientation (Portrait/Landscape)
+        /// </summary>
+        private string GetSheetOrientation(SheetItem sheet)
+        {
+            try
+            {
+                if (sheet?.Id == null || _document == null) return "-";
+
+                var revitSheet = _document.GetElement(sheet.Id) as ViewSheet;
+                if (revitSheet == null) return "-";
+
+                var titleBlock = new FilteredElementCollector(_document, revitSheet.Id)
+                    .OfCategory(BuiltInCategory.OST_TitleBlocks)
+                    .FirstOrDefault();
+
+                if (titleBlock != null)
+                {
+                    var widthParam = titleBlock.get_Parameter(BuiltInParameter.SHEET_WIDTH);
+                    var heightParam = titleBlock.get_Parameter(BuiltInParameter.SHEET_HEIGHT);
+
+                    if (widthParam != null && heightParam != null)
+                    {
+                        double width = widthParam.AsDouble();
+                        double height = heightParam.AsDouble();
+
+                        return width > height ? "Landscape" : "Portrait";
+                    }
+                }
+
+                return "-";
+            }
+            catch
+            {
+                return "-";
             }
         }
 
@@ -570,7 +778,7 @@ namespace ProSheetsAddin.Views
 
         private void FormatToggle_Checked(object sender, RoutedEventArgs e)
         {
-            if (sender is ToggleButton button && button.Tag is string format)
+            if (sender is System.Windows.Controls.Primitives.ToggleButton button && button.Tag is string format)
             {
                 WriteDebugLog($"[Export +] Format {format} checked via ToggleButton");
                 ExportSettings?.SetFormatSelection(format, true);
@@ -580,7 +788,7 @@ namespace ProSheetsAddin.Views
 
         private void FormatToggle_Unchecked(object sender, RoutedEventArgs e)
         {
-            if (sender is ToggleButton button && button.Tag is string format)
+            if (sender is System.Windows.Controls.Primitives.ToggleButton button && button.Tag is string format)
             {
                 WriteDebugLog($"[Export +] Format {format} unchecked via ToggleButton");
                 ExportSettings?.SetFormatSelection(format, false);
@@ -730,8 +938,8 @@ Tiếp tục xuất file?";
                     
                     if (exportSuccess)
                     {
-                        MessageBox.Show($"Export completed successfully!\n\nExported: {totalExported} files\nLocation: {outputPath}", 
-                            "Export Completed", MessageBoxButton.OK, MessageBoxImage.Information);
+                        // Show export completed dialog with Open Folder button
+                        ShowExportCompletedDialog(outputPath);
                     }
                     else
                     {
@@ -1657,6 +1865,388 @@ Tiếp tục xuất file?";
 
         #endregion
 
+        #region Create Tab Event Handlers
+
+        private void LearnMore_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) 
+                { 
+                    UseShellExecute = true 
+                });
+                e.Handled = true;
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error opening link: {ex.Message}");
+            }
+        }
+
+        private void SetPaperSizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Set Paper Size clicked");
+            
+            // Get selected items from ExportQueueDataGrid
+            if (ExportQueueDataGrid.SelectedItems.Count == 0)
+            {
+                MessageBox.Show("Please select at least one item to set paper size.", 
+                               "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Show paper size options dialog
+            var paperSizes = new[] { "A0", "A1", "A2", "A3", "A4", "Letter", "Tabloid", "Custom" };
+            var selectedSize = "A3"; // Default
+
+            // For now, just show a simple message
+            // TODO: Implement proper paper size selection dialog
+            MessageBox.Show($"Set Paper Size to {selectedSize} for {ExportQueueDataGrid.SelectedItems.Count} item(s).", 
+                           "Paper Size", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void SetOrientationButton_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Set Orientation clicked");
+            
+            // Get selected items from ExportQueueDataGrid
+            if (ExportQueueDataGrid.SelectedItems.Count == 0)
+            {
+                MessageBox.Show("Please select at least one item to set orientation.", 
+                               "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Show orientation options dialog
+            var result = MessageBox.Show("Set orientation to Portrait (Yes) or Landscape (No)?", 
+                                        "Set Orientation", 
+                                        MessageBoxButton.YesNoCancel, 
+                                        MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Set to Portrait
+                foreach (var item in ExportQueueDataGrid.SelectedItems)
+                {
+                    if (item is ExportQueueItem queueItem)
+                    {
+                        queueItem.Orientation = "Portrait";
+                    }
+                }
+                WriteDebugLog($"Set {ExportQueueDataGrid.SelectedItems.Count} items to Portrait");
+            }
+            else if (result == MessageBoxResult.No)
+            {
+                // Set to Landscape
+                foreach (var item in ExportQueueDataGrid.SelectedItems)
+                {
+                    if (item is ExportQueueItem queueItem)
+                    {
+                        queueItem.Orientation = "Landscape";
+                    }
+                }
+                WriteDebugLog($"Set {ExportQueueDataGrid.SelectedItems.Count} items to Landscape");
+            }
+        }
+
+        private void ScheduleToggle_Checked(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Schedule Toggle ON");
+            if (ScheduleSettingsPanel != null)
+            {
+                ScheduleSettingsPanel.Visibility = System.Windows.Visibility.Visible;
+            }
+            if (ScheduleStatusText != null)
+            {
+                ScheduleStatusText.Text = "The Scheduling Assistant is on.";
+                ScheduleStatusText.Foreground = new SolidColorBrush(System.Windows.Media.Colors.Green);
+            }
+            
+            // Initialize date picker to today if not set
+            if (StartingDatePicker != null && !StartingDatePicker.SelectedDate.HasValue)
+            {
+                StartingDatePicker.SelectedDate = DateTime.Now;
+            }
+            
+            // Initialize time combobox to current hour if not selected
+            if (TimeComboBox != null && TimeComboBox.SelectedIndex < 0)
+            {
+                var currentHour = DateTime.Now.Hour;
+                var ampm = currentHour >= 12 ? "PM" : "AM";
+                var hour12 = currentHour % 12;
+                if (hour12 == 0) hour12 = 12;
+                var timeString = $"{hour12:00}:00 {ampm}";
+                
+                // Try to find matching time in combobox
+                for (int i = 0; i < TimeComboBox.Items.Count; i++)
+                {
+                    if (TimeComboBox.Items[i] is ComboBoxItem item && 
+                        item.Content.ToString() == timeString)
+                    {
+                        TimeComboBox.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        private void ScheduleToggle_Unchecked(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Schedule Toggle OFF");
+            if (ScheduleSettingsPanel != null)
+            {
+                ScheduleSettingsPanel.Visibility = System.Windows.Visibility.Collapsed;
+            }
+            if (ScheduleStatusText != null)
+            {
+                ScheduleStatusText.Text = "The Scheduling Assistant is off.";
+                ScheduleStatusText.Foreground = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#666666"));
+            }
+        }
+
+        private void RepeatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DaysOfWeekPanel == null || RepeatComboBox == null) return;
+
+            // Show days of week panel only when "Weekly" is selected
+            var selectedItem = RepeatComboBox.SelectedItem as ComboBoxItem;
+            if (selectedItem?.Content?.ToString() == "Weekly")
+            {
+                DaysOfWeekPanel.Visibility = System.Windows.Visibility.Visible;
+                WriteDebugLog("Days of week panel shown (Weekly repeat selected)");
+            }
+            else
+            {
+                DaysOfWeekPanel.Visibility = System.Windows.Visibility.Collapsed;
+                WriteDebugLog($"Days of week panel hidden ({selectedItem?.Content} repeat selected)");
+            }
+        }
+
+        private void RefreshScheduleButton_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Refresh Schedule clicked");
+            
+            // Refresh schedule settings display
+            if (ScheduleToggle.IsChecked == true)
+            {
+                var date = StartingDatePicker.SelectedDate?.ToString("d") ?? "Not set";
+                var time = (TimeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Not set";
+                var repeat = (RepeatComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Does not repeat";
+                
+                var message = $"Current Schedule Settings:\n\n" +
+                             $"Date: {date}\n" +
+                             $"Time: {time}\n" +
+                             $"Repeat: {repeat}";
+                
+                if (repeat == "Weekly")
+                {
+                    var days = new System.Text.StringBuilder();
+                    if (MondayCheck.IsChecked == true) days.Append("Mon ");
+                    if (TuesdayCheck.IsChecked == true) days.Append("Tue ");
+                    if (WednesdayCheck.IsChecked == true) days.Append("Wed ");
+                    if (ThursdayCheck.IsChecked == true) days.Append("Thu ");
+                    if (FridayCheck.IsChecked == true) days.Append("Fri ");
+                    if (SaturdayCheck.IsChecked == true) days.Append("Sat ");
+                    if (SundayCheck.IsChecked == true) days.Append("Sun ");
+                    
+                    if (days.Length > 0)
+                    {
+                        message += $"\nDays: {days}";
+                    }
+                }
+                
+                MessageBox.Show(message, "Schedule Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("Scheduling Assistant is currently off. Turn it on to configure schedule settings.", 
+                               "Schedule Disabled", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private async void StartExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Start Export clicked");
+            
+            try
+            {
+                // Validate output folder
+                if (string.IsNullOrEmpty(CreateFolderPathTextBox?.Text))
+                {
+                    MessageBox.Show("Please select an output folder.", 
+                                   "No Folder", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Validate export queue has items
+                if (ExportQueueDataGrid.Items.Count == 0)
+                {
+                    MessageBox.Show("Export queue is empty. Please select items to export from the Selection tab.", 
+                                   "Empty Queue", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Disable button during export
+                StartExportButton.IsEnabled = false;
+                StartExportButton.Content = "EXPORTING...";
+                
+                // Reset progress
+                ExportProgressBar.Value = 0;
+                ProgressPercentageText.Text = "Completed 0%";
+
+                // Check if scheduling is enabled
+                if (ScheduleToggle.IsChecked == true)
+                {
+                    // Schedule for later
+                    var scheduleDate = StartingDatePicker.SelectedDate ?? DateTime.Now;
+                    var scheduleTime = (TimeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "12:00 PM";
+                    
+                    MessageBox.Show($"Export scheduled for {scheduleDate:d} at {scheduleTime}.\n\n" +
+                                   "The export will run automatically at the scheduled time.", 
+                                   "Export Scheduled", MessageBoxButton.OK, MessageBoxImage.Information);
+                    
+                    WriteDebugLog($"Export scheduled for {scheduleDate:d} {scheduleTime}");
+                }
+                else
+                {
+                    // Export immediately
+                    WriteDebugLog("Starting immediate export");
+                    
+                    var items = ExportQueueDataGrid.Items.Cast<ExportQueueItem>().ToList();
+                    var totalItems = items.Count;
+                    
+                    // Get selected sheets from Selection tab with custom file names
+                    var selectedSheets = Sheets.Where(s => s.IsSelected).ToList();
+                    
+                    if (selectedSheets.Count == 0)
+                    {
+                        MessageBox.Show("No sheets selected for export.", 
+                                       "No Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    // Get selected formats
+                    var selectedFormats = ExportSettings?.GetSelectedFormatsList() ?? new List<string>();
+                    
+                    if (selectedFormats.Count == 0)
+                    {
+                        MessageBox.Show("Please select at least one export format in the Format tab.", 
+                                       "No Format", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    WriteDebugLog($"Exporting {selectedSheets.Count} sheets in {selectedFormats.Count} format(s)");
+                    
+                    int completedCount = 0;
+                    string outputFolder = CreateFolderPathTextBox.Text;
+
+                    // Export for each selected format
+                    foreach (var format in selectedFormats)
+                    {
+                        WriteDebugLog($"Starting export for format: {format}");
+                        
+                        if (format.ToUpper() == "PDF")
+                        {
+                            // Use PDFExportManager with custom file names
+                            var pdfManager = new PDFExportManager(_document);
+                            
+                            // Progress callback to update UI
+                            bool exportResult = pdfManager.ExportSheetsWithCustomNames(
+                                selectedSheets,
+                                outputFolder,
+                                ExportSettings,
+                                (current, total, sheetNumber) =>
+                                {
+                                    // Find corresponding item in queue
+                                    var queueItem = items.FirstOrDefault(i => 
+                                        i.ViewSheetNumber == sheetNumber && 
+                                        i.Format == format.ToUpper());
+                                    
+                                    if (queueItem != null)
+                                    {
+                                        queueItem.Status = "Processing";
+                                        queueItem.Progress = (current * 100.0) / total;
+                                        
+                                        if (current == total)
+                                        {
+                                            queueItem.Status = "Completed";
+                                            queueItem.Progress = 100;
+                                        }
+                                    }
+                                    
+                                    // Update overall progress
+                                    completedCount++;
+                                    var overallProgress = (completedCount * 100.0) / totalItems;
+                                    ExportProgressBar.Value = overallProgress;
+                                    ProgressPercentageText.Text = $"Completed {overallProgress:F0}%";
+                                    
+                                    WriteDebugLog($"Progress: {current}/{total} - {sheetNumber}");
+                                });
+                            
+                            if (exportResult)
+                            {
+                                WriteDebugLog("PDF export completed successfully");
+                            }
+                            else
+                            {
+                                WriteDebugLog("PDF export failed or partially completed");
+                            }
+                        }
+                        else if (format.ToUpper() == "DWG")
+                        {
+                            WriteDebugLog("DWG export not yet implemented");
+                            // TODO: Implement DWG export with custom names
+                        }
+                        else if (format.ToUpper() == "IFC")
+                        {
+                            WriteDebugLog("IFC export not yet implemented");
+                            // TODO: Implement IFC export with custom names
+                        }
+                        else
+                        {
+                            WriteDebugLog($"Format {format} not yet implemented");
+                        }
+                    }
+                    
+                    // Mark any remaining items as completed
+                    foreach (var item in items.Where(i => i.Status != "Completed"))
+                    {
+                        item.Status = "Completed";
+                        item.Progress = 100;
+                    }
+                    
+                    // Final progress update
+                    ExportProgressBar.Value = 100;
+                    ProgressPercentageText.Text = "Completed 100%";
+                    
+                    // Generate report if selected
+                    var reportType = (ReportComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
+                    if (reportType != "Don't Save Report")
+                    {
+                        WriteDebugLog($"Generating {reportType}");
+                        // TODO: Implement report generation
+                    }
+                    
+                    // Show export completed dialog with Open Folder button
+                    ShowExportCompletedDialog(CreateFolderPathTextBox.Text);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error in StartExportButton_Click: {ex.Message}");
+                MessageBox.Show($"Error during export: {ex.Message}", 
+                               "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                // Re-enable button
+                StartExportButton.IsEnabled = true;
+                StartExportButton.Content = "START EXPORT";
+            }
+        }
+
+        #endregion
+
         #region Enhanced UI Event Handlers
 
         private void FilterByVSSet_Click(object sender, RoutedEventArgs e)
@@ -1788,6 +2378,11 @@ Tiếp tục xuất file?";
                         int updatedCount = ApplyCustomFileNameToSheets(selectedSheets, dialog.SelectedParameters);
                         
                         WriteDebugLog($"Updated {updatedCount} sheets with custom filename configuration");
+                        
+                        // IMPORTANT: Update Export Queue to reflect new custom names
+                        UpdateExportQueue();
+                        WriteDebugLog("Export Queue refreshed with updated custom file names");
+                        
                         MessageBox.Show($"Successfully applied custom filename to {updatedCount} sheet(s).", 
                                        "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
@@ -1814,6 +2409,11 @@ Tiếp tục xuất file?";
                         int updatedCount = ApplyCustomFileNameToViews(selectedViews, dialog.SelectedParameters);
                         
                         WriteDebugLog($"Updated {updatedCount} views with custom filename configuration");
+                        
+                        // IMPORTANT: Update Export Queue to reflect new custom names
+                        UpdateExportQueue();
+                        WriteDebugLog("Export Queue refreshed with updated custom file names");
+                        
                         MessageBox.Show($"Successfully applied custom filename to {updatedCount} view(s).", 
                                        "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     }

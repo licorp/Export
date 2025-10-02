@@ -10,11 +10,11 @@ none
 false
 DEBUG;TRACE
 
-2-1997342207
+3-694537386
 
-321464677341
+35-1599810529
 17-843612361
-Views\CustomFileNameDialog.xaml;Views\ProSheetsMainWindow.xaml;
+Views\CustomFileNameDialog.xaml;Views\ExportCompletedDialog.xaml;Views\ProSheetsMainWindow.xaml;
 
 False
 

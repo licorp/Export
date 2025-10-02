@@ -46,7 +46,9 @@ namespace ProSheetsAddin.Commands
             try
             {
                 // Tạo ProSheets Main Window với đầy đủ tính năng
-                var mainWindow = new ProSheetsMainWindow(commandData.Application.ActiveUIDocument.Document);
+                var mainWindow = new ProSheetsMainWindow(
+                    commandData.Application.ActiveUIDocument.Document,
+                    commandData.Application);
                 return mainWindow;
             }
             catch (Exception)

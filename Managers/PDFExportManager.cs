@@ -25,6 +25,175 @@ namespace ProSheetsAddin.Managers
         }
 
         /// <summary>
+        /// Export multiple sheets to PDF with custom file names
+        /// </summary>
+        public bool ExportSheetsWithCustomNames(List<SheetItem> sheetItems, string outputFolder, ExportSettings settings, Action<int, int, string> progressCallback = null)
+        {
+            try
+            {
+                WriteDebugLog($"[Export + PDF] Starting PDF export with custom names for {sheetItems.Count} sheets");
+                WriteDebugLog($"[Export + PDF] Output folder: {outputFolder}");
+
+                // Ensure output directory exists
+                Directory.CreateDirectory(outputFolder);
+
+                // Create PDF export options
+                PDFExportOptions pdfOptions = CreatePDFExportOptions(settings);
+                WriteDebugLog($"[Export + PDF] PDF options created");
+
+                int successCount = 0;
+                int failCount = 0;
+                int total = sheetItems.Count;
+
+                for (int i = 0; i < total; i++)
+                {
+                    var sheetItem = sheetItems[i];
+                    try
+                    {
+                        // Get ViewSheet from document
+                        ViewSheet sheet = _document.GetElement(sheetItem.Id) as ViewSheet;
+                        if (sheet == null)
+                        {
+                            WriteDebugLog($"[Export + PDF] ERROR: Cannot find sheet with ID {sheetItem.Id}");
+                            failCount++;
+                            continue;
+                        }
+
+                        WriteDebugLog($"[Export + PDF] Exporting sheet: {sheet.SheetNumber} - {sheet.Name}");
+                        
+                        // Report progress
+                        progressCallback?.Invoke(i + 1, total, sheet.SheetNumber);
+
+                        // Determine custom file name
+                        string customFileName = GetCustomOrDefaultFileName(sheetItem, sheet, settings);
+                        WriteDebugLog($"[Export + PDF] Target filename: {customFileName}");
+
+                        // Get file info BEFORE export (to detect modified files)
+                        var filesBeforeInfo = Directory.GetFiles(outputFolder, "*.pdf")
+                            .Select(f => new FileInfo(f))
+                            .ToDictionary(fi => fi.FullName, fi => fi.LastWriteTime);
+                        
+                        DateTime exportStartTime = DateTime.Now;
+                        WriteDebugLog($"[Export + PDF] Export starting at: {exportStartTime:HH:mm:ss.fff}");
+                        WriteDebugLog($"[Export + PDF] Files before export: {filesBeforeInfo.Count}");
+                        
+                        // Use a temporary filename for Revit export (Revit may add prefixes)
+                        string tempFileName = $"_TEMP_{Guid.NewGuid():N}";
+                        
+                        // Create list of ElementIds for this sheet
+                        List<ElementId> sheetIds = new List<ElementId> { sheet.Id };
+
+                        // Set temporary file name in options
+                        pdfOptions.FileName = tempFileName;
+
+                        // Export the sheet with temporary name
+                        _document.Export(outputFolder, sheetIds, pdfOptions);
+                        
+                        // Wait for file to be written to disk
+                        System.Threading.Thread.Sleep(500);
+
+                        // Get files AFTER export
+                        var filesAfter = Directory.GetFiles(outputFolder, "*.pdf");
+                        WriteDebugLog($"[Export + PDF] Files after export: {filesAfter.Length}");
+                        
+                        // Find NEW or MODIFIED files (created or modified after export started)
+                        string exportedFile = null;
+                        
+                        foreach (string file in filesAfter)
+                        {
+                            FileInfo fi = new FileInfo(file);
+                            
+                            // Check if file is new (not in before list)
+                            if (!filesBeforeInfo.ContainsKey(fi.FullName))
+                            {
+                                exportedFile = file;
+                                WriteDebugLog($"[Export + PDF] Found NEW file: {Path.GetFileName(file)}");
+                                break;
+                            }
+                            
+                            // Check if file was modified after export started
+                            if (fi.LastWriteTime > exportStartTime)
+                            {
+                                exportedFile = file;
+                                WriteDebugLog($"[Export + PDF] Found MODIFIED file: {Path.GetFileName(file)} (modified at {fi.LastWriteTime:HH:mm:ss.fff})");
+                                break;
+                            }
+                        }
+                        
+                        if (exportedFile != null)
+                        {
+                            string targetFile = Path.Combine(outputFolder, customFileName + ".pdf");
+                            
+                            // If target file exists and it's not the exported file, delete it
+                            if (File.Exists(targetFile) && !string.Equals(exportedFile, targetFile, StringComparison.OrdinalIgnoreCase))
+                            {
+                                File.Delete(targetFile);
+                                WriteDebugLog($"[Export + PDF] Deleted existing target file");
+                            }
+                            
+                            // Rename to custom filename (if not already the same)
+                            if (!string.Equals(exportedFile, targetFile, StringComparison.OrdinalIgnoreCase))
+                            {
+                                File.Move(exportedFile, targetFile);
+                                WriteDebugLog($"[Export + PDF] SUCCESS: Renamed '{Path.GetFileName(exportedFile)}' to '{customFileName}.pdf'");
+                            }
+                            else
+                            {
+                                WriteDebugLog($"[Export + PDF] SUCCESS: File already has correct name: {customFileName}.pdf");
+                            }
+                            
+                            successCount++;
+                        }
+                        else
+                        {
+                            WriteDebugLog($"[Export + PDF] ERROR: Could not find exported/modified file for {sheet.SheetNumber}");
+                            WriteDebugLog($"[Export + PDF] Export started at: {exportStartTime:HH:mm:ss.fff}");
+                            WriteDebugLog($"[Export + PDF] Current time: {DateTime.Now:HH:mm:ss.fff}");
+                            
+                            // Log file details (C# 7.3 compatible)
+                            var fileDetails = string.Join(", ", filesAfter.Select(f => {
+                                var fi = new FileInfo(f);
+                                return string.Format("{0} (modified: {1:HH:mm:ss.fff})", Path.GetFileName(f), fi.LastWriteTime);
+                            }));
+                            WriteDebugLog($"[Export + PDF] Files in folder: {fileDetails}");
+                            
+                            failCount++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        failCount++;
+                        WriteDebugLog($"[Export + PDF] ERROR exporting {sheetItem.SheetNumber}: {ex.Message}");
+                    }
+                }
+
+                WriteDebugLog($"[Export + PDF] Export completed - Success: {successCount}, Failed: {failCount}");
+                return successCount > 0;
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"[Export + PDF] CRITICAL ERROR in ExportSheetsWithCustomNames: {ex.Message}");
+                WriteDebugLog($"[Export + PDF] Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Get custom file name if available, otherwise generate default
+        /// </summary>
+        private string GetCustomOrDefaultFileName(SheetItem sheetItem, ViewSheet sheet, ExportSettings settings)
+        {
+            // Use custom file name if available
+            if (!string.IsNullOrWhiteSpace(sheetItem.CustomFileName))
+            {
+                return SanitizeFileName(sheetItem.CustomFileName);
+            }
+
+            // Otherwise generate default file name
+            return GenerateFileName(sheet, settings);
+        }
+
+        /// <summary>
         /// Export multiple sheets to PDF
         /// </summary>
         public bool ExportSheetsToPDF(List<ViewSheet> sheets, string outputFolder, ExportSettings settings)
@@ -124,6 +293,37 @@ namespace ProSheetsAddin.Managers
                 options.Combine = false; // Export individual files
                 options.HideCropBoundaries = true;
                 options.HideScopeBoxes = true;
+                
+                // CRITICAL FIX: Set naming rule to use custom file names without Revit prefix
+                try
+                {
+                    // Try to set NamingRule property (Revit 2023+)
+                    var namingRuleProperty = options.GetType().GetProperty("NamingRule");
+                    if (namingRuleProperty != null && namingRuleProperty.PropertyType.IsEnum)
+                    {
+                        // Get the enum type for NamingRule
+                        var namingRuleType = namingRuleProperty.PropertyType;
+                        // Try to set to "Custom" or "FileName" enum value (usually 0 or 1)
+                        var customValue = Enum.Parse(namingRuleType, "Custom", true);
+                        namingRuleProperty.SetValue(options, customValue);
+                        WriteDebugLog("[Export + PDF] Set NamingRule to Custom for custom file names");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteDebugLog($"[Export + PDF] Warning - could not set NamingRule: {ex.Message}");
+                }
+                
+                // Alternative approach: Try to disable automatic naming
+                try
+                {
+                    var autoNamingProperty = options.GetType().GetProperty("ReplaceHalftoneWithThinLines");
+                    if (autoNamingProperty != null)
+                    {
+                        autoNamingProperty.SetValue(options, false);
+                    }
+                }
+                catch { /* Ignore if property doesn't exist */ }
                 // Note: PDF export options may vary by Revit version
                 // These settings work for Revit 2022+
                 try

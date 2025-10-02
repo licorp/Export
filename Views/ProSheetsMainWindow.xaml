@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ProSheetsAddin"
         xmlns:utils="clr-namespace:ProSheetsAddin.Utils"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="Export +" 
         Height="750" Width="1200"
         MinHeight="600" MinWidth="800"
@@ -1311,135 +1312,500 @@
                     </StackPanel>
                 </TabItem.Header>
                 
-                <Grid Margin="20">
+                <Grid Margin="15">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Output Folder Selection -->
-                    <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E1E1E1" BorderThickness="1" 
-                            CornerRadius="3" Padding="15" Margin="0,0,0,15">
-                        <Grid>
+                    <!-- Export Rules Section -->
+                    <GroupBox Grid.Row="0" Header="Export Rules" Margin="0,0,0,15" 
+                              BorderBrush="#E1E1E1" BorderThickness="1">
+                        <Grid Margin="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="200"/>
+                            </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            
-                            <TextBlock Grid.Row="0" Text="Output Folder" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                            
-                            <Grid Grid.Row="1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                
-                                <TextBox Grid.Column="0" x:Name="OutputFolderTextBox" 
+
+                            <!-- Folder Selection -->
+                            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Folder Selection:" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
+                                <TextBox x:Name="CreateFolderPathTextBox" Width="400" Height="25" 
                                          Text="{Binding OutputFolder, UpdateSourceTrigger=PropertyChanged}"
-                                         Height="35" VerticalContentAlignment="Center" 
-                                         Margin="0,0,10,0" FontSize="13"/>
-                                         
-                                <Button Grid.Column="1" Content="Browse..." Width="80" Height="35"
-                                        Click="BrowseOutputFolder_Click"
-                                        Background="#2196F3" Foreground="White" BorderThickness="0"/>
-                            </Grid>
-                        </Grid>
-                    </Border>
-
-                    <!-- Selection Summary -->
-                    <Border Grid.Row="1" Background="#F0F4FF" BorderBrush="#2196F3" BorderThickness="1" 
-                            CornerRadius="3" Padding="15" Margin="0,0,0,15">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Selection Summary" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                                <TextBlock x:Name="SelectionSummaryText" Text="No items selected" 
-                                           FontSize="13" Foreground="#666"/>
+                                         VerticalContentAlignment="Center" FontSize="13"/>
+                                <Button x:Name="CreateBrowseFolderButton" Content="📁" Width="30" Height="25" 
+                                        Margin="5,0,0,0" FontSize="14"
+                                        utils:BrowseFileBehavior.TargetTextBoxName="CreateFolderPathTextBox"
+                                        utils:BrowseFileBehavior.DialogTitle="Select Export Folder"
+                                        utils:BrowseFileBehavior.IsFolderPicker="True"
+                                        ToolTip="Browse for folder"/>
                             </StackPanel>
-                            
-                            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                <TextBlock Text="Export Formats" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                                <TextBlock x:Name="FormatSummaryText" Text="No formats selected" 
-                                           FontSize="13" Foreground="#666"/>
+
+                            <!-- Environment Variables Info -->
+                            <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Supports environment variables: " VerticalAlignment="Center" FontSize="12" Foreground="#666"/>
+                                <TextBlock VerticalAlignment="Center" FontSize="12">
+                                    <Hyperlink NavigateUri="https://help.autodesk.com" RequestNavigate="LearnMore_RequestNavigate">
+                                        <TextBlock Text="Learn More"/>
+                                    </Hyperlink>
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!-- Save Options -->
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,0,10">
+                                <RadioButton x:Name="SaveAllFilesRadio" 
+                                             Content="Save all files in the same folder location" 
+                                             IsChecked="True" 
+                                             Margin="0,0,0,5" 
+                                             FontSize="13"
+                                             GroupName="SaveOptions"/>
+                                <RadioButton x:Name="SaveSplitFilesRadio" 
+                                             Content="Save and split files by file format" 
+                                             FontSize="13"
+                                             GroupName="SaveOptions"/>
+                            </StackPanel>
+
+                            <!-- Progress and Report Section -->
+                            <StackPanel Grid.Row="0" Grid.RowSpan="3" Grid.Column="2" Margin="20,0,0,0">
+                                <!-- Progress Bar -->
+                                <TextBlock x:Name="ProgressPercentageText" 
+                                           Text="Completed 0%" 
+                                           FontSize="12" 
+                                           Margin="0,0,0,5"/>
+                                <ProgressBar x:Name="ExportProgressBar" 
+                                             Height="20" 
+                                             Value="0" 
+                                             Maximum="100" 
+                                             Margin="0,0,0,15"/>
+                                
+                                <!-- Report Dropdown -->
+                                <TextBlock Text="Export Report:" FontSize="12" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="ReportComboBox" 
+                                          Height="25" 
+                                          Margin="0,0,0,10"
+                                          FontSize="13">
+                                    <ComboBoxItem Content="Don't Save Report" IsSelected="True"/>
+                                    <ComboBoxItem Content="Save HTML Report"/>
+                                    <ComboBoxItem Content="Save PDF Report"/>
+                                    <ComboBoxItem Content="Save Text Report"/>
+                                </ComboBox>
                             </StackPanel>
                         </Grid>
-                    </Border>
+                    </GroupBox>
 
-                    <!-- Selected Items Preview -->
-                    <Border Grid.Row="2" Background="White" BorderBrush="#E1E1E1" BorderThickness="1" 
-                            CornerRadius="3">
+                    <!-- Export Queue DataGrid -->
+                    <GroupBox Grid.Row="1" Header="Export Queue" Margin="0,0,0,15"
+                              BorderBrush="#E1E1E1" BorderThickness="1">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            
-                            <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E1E1E1" 
-                                    BorderThickness="0,0,0,1" Padding="15,10">
-                                <TextBlock Text="Selected Items Preview" FontWeight="SemiBold"/>
-                            </Border>
-                            
-                            <ListBox Grid.Row="1" x:Name="SelectedItemsListBox" 
-                                     BorderThickness="0" Margin="10"
-                                     ItemsSource="{Binding SelectedItemsForExport}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="5">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="120"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="150"/>
-                                            </Grid.ColumnDefinitions>
-                                            
-                                            <Ellipse Grid.Column="0" Fill="#4CAF50" Width="8" Height="8" 
-                                                     VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding Number}" FontWeight="SemiBold" 
-                                                       VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding Name}" 
-                                                       VerticalAlignment="Center" Margin="10,0"/>
-                                            <TextBlock Grid.Column="3" Text="{Binding CustomFileName}" 
-                                                       FontStyle="Italic" Foreground="#666"
-                                                       VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
-                    </Border>
 
-                    <!-- Create Button -->
-                    <Button Grid.Row="3" Content="CREATE FILES" Height="45" 
-                            FontSize="14" FontWeight="SemiBold"
-                            Background="#4CAF50" Foreground="White" BorderThickness="0"
-                            Margin="0,15,0,0" Click="CreateFiles_Click">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
+                            <!-- Action Buttons -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,10">
+                                <Button x:Name="SetPaperSizeButton" 
+                                        Content="Set Paper Size" 
+                                        Width="120" 
+                                        Height="28" 
+                                        Margin="0,0,5,0" 
+                                        FontSize="12"
+                                        Background="#607D8B"
+                                        Foreground="White"
+                                        BorderThickness="0"
+                                        Click="SetPaperSizeButton_Click"
+                                        ToolTip="Set paper size for selected sheets"/>
+                                <Button x:Name="SetOrientationButton" 
+                                        Content="Set Orientation" 
+                                        Width="120" 
+                                        Height="28" 
+                                        FontSize="12"
+                                        Background="#607D8B"
+                                        Foreground="White"
+                                        BorderThickness="0"
+                                        Click="SetOrientationButton_Click"
+                                        ToolTip="Set orientation for selected sheets"/>
+                            </StackPanel>
+
+                            <!-- Export Queue DataGrid -->
+                            <DataGrid Grid.Row="1" 
+                                      x:Name="ExportQueueDataGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      GridLinesVisibility="Horizontal"
+                                      HeadersVisibility="Column"
+                                      AlternatingRowBackground="#F9F9F9"
+                                      RowBackground="White"
+                                      RowHeaderWidth="0"
+                                      SelectionMode="Extended"
+                                      BorderThickness="1"
+                                      BorderBrush="#E1E1E1"
+                                      ItemsSource="{Binding ExportQueueItems}">
+                                
+                                <DataGrid.Columns>
+                                    <!-- Checkbox Column -->
+                                    <DataGridCheckBoxColumn Header="✓" 
+                                                           Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" 
+                                                           Width="35"/>
+                                    
+                                    <!-- View/Sheet Number -->
+                                    <DataGridTextColumn Header="View/Sheet Number" 
+                                                       Binding="{Binding ViewSheetNumber}" 
+                                                       Width="140"
+                                                       IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="Padding" Value="5,0"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    
+                                    <!-- View/Sheet Name -->
+                                    <DataGridTextColumn Header="View/Sheet Name" 
+                                                       Binding="{Binding ViewSheetName}" 
+                                                       Width="*"
+                                                       IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="Padding" Value="5,0"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    
+                                    <!-- Format -->
+                                    <DataGridTextColumn Header="Format" 
+                                                       Binding="{Binding Format}" 
+                                                       Width="80"
+                                                       IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    
+                                    <!-- Size -->
+                                    <DataGridTextColumn Header="Size" 
+                                                       Binding="{Binding Size}" 
+                                                       Width="100"
+                                                       IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    
+                                    <!-- Orientation -->
+                                    <DataGridTextColumn Header="Orientation" 
+                                                       Binding="{Binding Orientation}" 
+                                                       Width="90"
+                                                       IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    
+                                    <!-- Progress Column with ProgressBar -->
+                                    <DataGridTemplateColumn Header="Progress" Width="120">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="5">
+                                                    <ProgressBar Value="{Binding Progress}" 
+                                                                Maximum="100" 
+                                                                Height="18"
+                                                                Background="#F0F0F0"
+                                                                BorderBrush="#CCCCCC"
+                                                                BorderThickness="1">
+                                                        <ProgressBar.Foreground>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                <GradientStop Color="#4CAF50" Offset="0"/>
+                                                                <GradientStop Color="#81C784" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </ProgressBar.Foreground>
+                                                    </ProgressBar>
+                                                    <TextBlock Text="{Binding Progress, StringFormat={}{0}%}" 
+                                                              HorizontalAlignment="Center" 
+                                                              VerticalAlignment="Center"
+                                                              FontSize="10"
+                                                              FontWeight="SemiBold"
+                                                              Foreground="#333"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    
+                                    <!-- Status Column -->
+                                    <DataGridTextColumn Header="Status" 
+                                                       Binding="{Binding Status}" 
+                                                       Width="100"
+                                                       IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="FontSize" Value="11"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                        <Setter Property="Foreground" Value="#4CAF50"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                        <Setter Property="Foreground" Value="#FF9800"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Pending">
+                                                        <Setter Property="Foreground" Value="#9E9E9E"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Error">
+                                                        <Setter Property="Foreground" Value="#F44336"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                </DataGrid.Columns>
+
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow">
+                                        <Setter Property="Height" Value="32"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#F5F5F5"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                            </DataGrid>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Scheduling Assistant Section -->
+                    <GroupBox Grid.Row="2" Header="Scheduling Assistant ⭐" Margin="0,0,0,10"
+                              BorderBrush="#E1E1E1" BorderThickness="1">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Schedule Toggle -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <ToggleButton x:Name="ScheduleToggle" 
+                                             Width="50" 
+                                             Height="25" 
+                                             IsChecked="False" 
+                                             Checked="ScheduleToggle_Checked"
+                                             Unchecked="ScheduleToggle_Unchecked">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
                                             <Border Background="{TemplateBinding Background}" 
-                                                    CornerRadius="3" BorderThickness="0">
-                                                <ContentPresenter HorizontalAlignment="Center" 
-                                                                  VerticalAlignment="Center"/>
+                                                    BorderBrush="#CCCCCC" 
+                                                    BorderThickness="1" 
+                                                    CornerRadius="12">
+                                                <Grid>
+                                                    <Ellipse x:Name="SwitchThumb" 
+                                                            Width="20" Height="20" 
+                                                            Fill="White" 
+                                                            HorizontalAlignment="Left" 
+                                                            Margin="2"/>
+                                                </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#45A049"/>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter Property="Background" Value="#4CAF50"/>
+                                                    <Setter TargetName="SwitchThumb" Property="HorizontalAlignment" Value="Right"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="False">
+                                                    <Setter Property="Background" Value="#CCCCCC"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <TextBlock Text="Schedule Publish" 
+                                          VerticalAlignment="Center" 
+                                          Margin="10,0,0,0" 
+                                          FontSize="13"
+                                          FontWeight="SemiBold"/>
+                                <TextBlock x:Name="ScheduleStatusText" 
+                                          Text="The Scheduling Assistant is off." 
+                                          VerticalAlignment="Center" 
+                                          Margin="15,0,0,0" 
+                                          FontStyle="Italic"
+                                          FontSize="12"
+                                          Foreground="#666"/>
+                                <Button x:Name="RefreshScheduleButton" 
+                                       Content="🔄" 
+                                       Width="28" 
+                                       Height="25" 
+                                       Margin="10,0,0,0" 
+                                       FontSize="14"
+                                       Background="#2196F3"
+                                       Foreground="White"
+                                       BorderThickness="0"
+                                       Click="RefreshScheduleButton_Click"
+                                       ToolTip="Refresh schedule settings"/>
+                            </StackPanel>
+
+                            <!-- Schedule Settings -->
+                            <StackPanel Grid.Row="1" 
+                                       x:Name="ScheduleSettingsPanel" 
+                                       Visibility="Collapsed"
+                                       Margin="0,10,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Starting Date -->
+                                    <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                        <TextBlock Text="Choose Starting Date" 
+                                                  Margin="0,0,0,5" 
+                                                  FontSize="12"
+                                                  FontWeight="SemiBold"/>
+                                        <DatePicker x:Name="StartingDatePicker" 
+                                                   Width="150"
+                                                   Height="28"
+                                                   FontSize="12"/>
+                                    </StackPanel>
+
+                                    <!-- Time -->
+                                    <StackPanel Grid.Column="1" Margin="0,0,20,0">
+                                        <TextBlock Text="Choose Time" 
+                                                  Margin="0,0,0,5" 
+                                                  FontSize="12"
+                                                  FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="TimeComboBox" 
+                                                 Width="100"
+                                                 Height="28"
+                                                 FontSize="12">
+                                            <ComboBoxItem Content="12:00 AM"/>
+                                            <ComboBoxItem Content="01:00 AM"/>
+                                            <ComboBoxItem Content="02:00 AM"/>
+                                            <ComboBoxItem Content="03:00 AM"/>
+                                            <ComboBoxItem Content="04:00 AM"/>
+                                            <ComboBoxItem Content="05:00 AM"/>
+                                            <ComboBoxItem Content="06:00 AM"/>
+                                            <ComboBoxItem Content="07:00 AM"/>
+                                            <ComboBoxItem Content="08:00 AM"/>
+                                            <ComboBoxItem Content="09:00 AM"/>
+                                            <ComboBoxItem Content="10:00 AM"/>
+                                            <ComboBoxItem Content="11:00 AM"/>
+                                            <ComboBoxItem Content="12:00 PM"/>
+                                            <ComboBoxItem Content="01:00 PM"/>
+                                            <ComboBoxItem Content="02:00 PM"/>
+                                            <ComboBoxItem Content="03:00 PM"/>
+                                            <ComboBoxItem Content="04:00 PM"/>
+                                            <ComboBoxItem Content="05:00 PM"/>
+                                            <ComboBoxItem Content="06:00 PM"/>
+                                            <ComboBoxItem Content="07:00 PM"/>
+                                            <ComboBoxItem Content="08:00 PM"/>
+                                            <ComboBoxItem Content="09:00 PM"/>
+                                            <ComboBoxItem Content="10:00 PM"/>
+                                            <ComboBoxItem Content="11:00 PM"/>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <!-- Repeat Options -->
+                                    <StackPanel Grid.Column="2" Margin="0,0,20,0">
+                                        <TextBlock Text="Repeat" 
+                                                  Margin="0,0,0,5" 
+                                                  FontSize="12"
+                                                  FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="RepeatComboBox" 
+                                                 Width="140"
+                                                 Height="28"
+                                                 FontSize="12"
+                                                 SelectionChanged="RepeatComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="Does not repeat" IsSelected="True"/>
+                                            <ComboBoxItem Content="Daily"/>
+                                            <ComboBoxItem Content="Weekly"/>
+                                            <ComboBoxItem Content="Monthly"/>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <!-- Days of Week -->
+                                    <StackPanel Grid.Column="3" 
+                                               x:Name="DaysOfWeekPanel"
+                                               Orientation="Horizontal"
+                                               VerticalAlignment="Bottom"
+                                               Visibility="Collapsed">
+                                        <CheckBox x:Name="MondayCheck" Content="Mon" Margin="0,0,10,0" FontSize="12"/>
+                                        <CheckBox x:Name="TuesdayCheck" Content="Tue" Margin="0,0,10,0" FontSize="12"/>
+                                        <CheckBox x:Name="WednesdayCheck" Content="Wed" Margin="0,0,10,0" FontSize="12"/>
+                                        <CheckBox x:Name="ThursdayCheck" Content="Thu" Margin="0,0,10,0" FontSize="12"/>
+                                        <CheckBox x:Name="FridayCheck" Content="Fri" Margin="0,0,10,0" FontSize="12"/>
+                                        <CheckBox x:Name="SaturdayCheck" Content="Sat" Margin="0,0,10,0" FontSize="12"/>
+                                        <CheckBox x:Name="SundayCheck" Content="Sun" FontSize="12"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Start Export Button -->
+                            <Button Grid.Row="2" 
+                                   x:Name="StartExportButton" 
+                                   Content="START EXPORT" 
+                                   Height="40" 
+                                   FontSize="14" 
+                                   FontWeight="Bold"
+                                   Background="#4CAF50" 
+                                   Foreground="White"
+                                   BorderThickness="0"
+                                   HorizontalAlignment="Center"
+                                   Width="200"
+                                   Margin="0,15,0,0"
+                                   Click="StartExportButton_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" 
+                                                            CornerRadius="3" 
+                                                            BorderThickness="0">
+                                                        <ContentPresenter HorizontalAlignment="Center" 
+                                                                         VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#45A049"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter Property="Background" Value="#CCCCCC"/>
+                                                            <Setter Property="Foreground" Value="#666666"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
+                    </GroupBox>
                 </Grid>
             </TabItem>
         </TabControl>

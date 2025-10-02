@@ -1,12 +1,14 @@
 using System;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
+using WpfButton = System.Windows.Controls.Button;
+using WpfTextBox = System.Windows.Controls.TextBox;
+using System.Windows.Forms; // For FolderBrowserDialog
 
 namespace ProSheetsAddin.Utils
 {
     /// <summary>
-    /// Attached Behavior for Browse File buttons
+    /// Attached Behavior for Browse File/Folder buttons
     /// This avoids WPF XAML compilation issues with x:Name controls in code-behind
     /// </summary>
     public static class BrowseFileBehavior
@@ -23,12 +25,12 @@ namespace ProSheetsAddin.Utils
                 typeof(BrowseFileBehavior),
                 new PropertyMetadata(null, OnTargetTextBoxNameChanged));
 
-        public static void SetTargetTextBoxName(Button button, string value)
+        public static void SetTargetTextBoxName(WpfButton button, string value)
         {
             button.SetValue(TargetTextBoxNameProperty, value);
         }
 
-        public static string GetTargetTextBoxName(Button button)
+        public static string GetTargetTextBoxName(WpfButton button)
         {
             return (string)button.GetValue(TargetTextBoxNameProperty);
         }
@@ -47,12 +49,12 @@ namespace ProSheetsAddin.Utils
                 typeof(BrowseFileBehavior),
                 new PropertyMetadata("Select File"));
 
-        public static void SetDialogTitle(Button button, string value)
+        public static void SetDialogTitle(WpfButton button, string value)
         {
             button.SetValue(DialogTitleProperty, value);
         }
 
-        public static string GetDialogTitle(Button button)
+        public static string GetDialogTitle(WpfButton button)
         {
             return (string)button.GetValue(DialogTitleProperty);
         }
@@ -71,14 +73,38 @@ namespace ProSheetsAddin.Utils
                 typeof(BrowseFileBehavior),
                 new PropertyMetadata("Text Files (*.txt)|*.txt|All Files (*.*)|*.*"));
 
-        public static void SetFileFilter(Button button, string value)
+        public static void SetFileFilter(WpfButton button, string value)
         {
             button.SetValue(FileFilterProperty, value);
         }
 
-        public static string GetFileFilter(Button button)
+        public static string GetFileFilter(WpfButton button)
         {
             return (string)button.GetValue(FileFilterProperty);
+        }
+
+        #endregion
+
+        #region IsFolderPicker Attached Property
+
+        /// <summary>
+        /// Set to true to use FolderBrowserDialog instead of OpenFileDialog
+        /// </summary>
+        public static readonly DependencyProperty IsFolderPickerProperty =
+            DependencyProperty.RegisterAttached(
+                "IsFolderPicker",
+                typeof(bool),
+                typeof(BrowseFileBehavior),
+                new PropertyMetadata(false));
+
+        public static void SetIsFolderPicker(WpfButton button, bool value)
+        {
+            button.SetValue(IsFolderPickerProperty, value);
+        }
+
+        public static bool GetIsFolderPicker(WpfButton button)
+        {
+            return (bool)button.GetValue(IsFolderPickerProperty);
         }
 
         #endregion
@@ -87,7 +113,7 @@ namespace ProSheetsAddin.Utils
 
         private static void OnTargetTextBoxNameChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (d is Button button && e.NewValue is string textBoxName && !string.IsNullOrEmpty(textBoxName))
+            if (d is WpfButton button && e.NewValue is string textBoxName && !string.IsNullOrEmpty(textBoxName))
             {
                 // Remove old handler to avoid duplicates
                 button.Click -= BrowseButton_Click;
@@ -98,7 +124,7 @@ namespace ProSheetsAddin.Utils
 
         private static void BrowseButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!(sender is Button button)) return;
+            if (!(sender is WpfButton button)) return;
 
             try
             {
@@ -107,10 +133,10 @@ namespace ProSheetsAddin.Utils
                 if (string.IsNullOrEmpty(textBoxName)) return;
 
                 // Find the TextBox by name in the visual tree
-                TextBox targetTextBox = FindTextBoxByName(button, textBoxName);
+                WpfTextBox targetTextBox = FindTextBoxByName(button, textBoxName);
                 if (targetTextBox == null)
                 {
-                    MessageBox.Show(
+                    System.Windows.MessageBox.Show(
                         $"Could not find TextBox with name '{textBoxName}'",
                         "Browse Error",
                         MessageBoxButton.OK,
@@ -118,46 +144,73 @@ namespace ProSheetsAddin.Utils
                     return;
                 }
 
-                // Get dialog settings
-                string title = GetDialogTitle(button);
-                string filter = GetFileFilter(button);
+                // Check if this is a folder picker or file picker
+                bool isFolderPicker = GetIsFolderPicker(button);
 
-                // Create and configure OpenFileDialog
-                var dialog = new Microsoft.Win32.OpenFileDialog
+                if (isFolderPicker)
                 {
-                    Title = title,
-                    Filter = filter,
-                    FilterIndex = 1,
-                    CheckFileExists = false
-                };
-
-                // Set initial directory from current TextBox value if exists
-                string currentPath = targetTextBox.Text;
-                if (!string.IsNullOrEmpty(currentPath))
-                {
-                    try
+                    // Use FolderBrowserDialog for folder selection
+                    var dialog = new System.Windows.Forms.FolderBrowserDialog
                     {
-                        var directory = Path.GetDirectoryName(currentPath);
-                        if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
-                        {
-                            dialog.InitialDirectory = directory;
-                        }
+                        Description = GetDialogTitle(button),
+                        ShowNewFolderButton = true
+                    };
+
+                    // Set initial directory from current TextBox value if exists
+                    string currentPath = targetTextBox.Text;
+                    if (!string.IsNullOrEmpty(currentPath) && Directory.Exists(currentPath))
+                    {
+                        dialog.SelectedPath = currentPath;
                     }
-                    catch
+
+                    // Show dialog and update TextBox
+                    if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                     {
-                        // Ignore invalid paths
+                        targetTextBox.Text = dialog.SelectedPath;
                     }
                 }
-
-                // Show dialog and update TextBox
-                if (dialog.ShowDialog() == true)
+                else
                 {
-                    targetTextBox.Text = dialog.FileName;
+                    // Use OpenFileDialog for file selection
+                    string title = GetDialogTitle(button);
+                    string filter = GetFileFilter(button);
+
+                    var dialog = new Microsoft.Win32.OpenFileDialog
+                    {
+                        Title = title,
+                        Filter = filter,
+                        FilterIndex = 1,
+                        CheckFileExists = false
+                    };
+
+                    // Set initial directory from current TextBox value if exists
+                    string currentPath = targetTextBox.Text;
+                    if (!string.IsNullOrEmpty(currentPath))
+                    {
+                        try
+                        {
+                            var directory = Path.GetDirectoryName(currentPath);
+                            if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+                            {
+                                dialog.InitialDirectory = directory;
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore invalid paths
+                        }
+                    }
+
+                    // Show dialog and update TextBox
+                    if (dialog.ShowDialog() == true)
+                    {
+                        targetTextBox.Text = dialog.FileName;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                System.Windows.MessageBox.Show(
                     $"Error selecting file: {ex.Message}",
                     "Browse Error",
                     MessageBoxButton.OK,
@@ -172,7 +225,7 @@ namespace ProSheetsAddin.Utils
         /// <summary>
         /// Find a TextBox by name in the visual tree
         /// </summary>
-        private static TextBox FindTextBoxByName(DependencyObject element, string name)
+        private static WpfTextBox FindTextBoxByName(DependencyObject element, string name)
         {
             if (element == null || string.IsNullOrEmpty(name))
                 return null;
@@ -183,7 +236,7 @@ namespace ProSheetsAddin.Utils
 
             // Use LogicalTreeHelper to find named element
             var foundElement = window.FindName(name);
-            return foundElement as TextBox;
+            return foundElement as WpfTextBox;
         }
 
         #endregion

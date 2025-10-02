@@ -15,3 +15,5 @@ C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\Re
 C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin.dll
 C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin.pdb
 C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\GeneratedInternalTypeHelper.g.cs
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\Views\ExportCompletedDialog.baml
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\Views\ExportCompletedDialog.g.cs
