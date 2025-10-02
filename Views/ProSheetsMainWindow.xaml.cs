@@ -174,6 +174,10 @@ namespace ProSheetsAddin.Views
             InitializeComponent();
             WriteDebugLog("InitializeComponent completed");
             
+            // TODO: Wire up Browse buttons for IFC Settings AFTER InitializeComponent
+            // WireUpIFCBrowseButtons();
+            // WriteDebugLog("IFC Browse buttons wired up");
+            
             // Configure window for non-modal operation
             ConfigureNonModalWindow();
             
@@ -2694,7 +2698,113 @@ Tiếp tục xuất file?";
                 return pattern; // Fallback to original pattern
             }
         }
-    }
 
-    #endregion
+        #endregion
+
+        #region IFC Settings Event Handlers (DISABLED - WPF Build Issue)
+
+        // NOTE: These methods are commented out due to WPF temporary assembly validation issues
+        // The .g.cs file containing x:Name field declarations is not generated until AFTER
+        // the temporary assembly compilation succeeds, creating a circular dependency.
+        // 
+        // SOLUTION: Implement Browse button functionality using:
+        // 1. Behaviors/Attached Properties (no code-behind references)
+        // 2. MVVM pattern with Commands
+        // 3. Post-deployment event wiring (outside WPF build process)
+
+        /*
+        /// <summary>
+        /// Wire up Browse button Click handlers in constructor
+        /// This avoids WPF XAML compilation issues with x:Name controls
+        /// </summary>
+        private void WireUpIFCBrowseButtons()
+        {
+            try
+            {
+                if (BrowseUserPsetsButtonIFC != null)
+                {
+                    BrowseUserPsetsButtonIFC.Click += BrowseIFCFile_Click;
+                }
+                
+                if (BrowseParamMappingButtonIFC != null)
+                {
+                    BrowseParamMappingButtonIFC.Click += BrowseIFCFile_Click;
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error wiring up IFC Browse buttons: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Universal Browse button click handler for IFC file selection
+        /// Uses Button.Tag to determine which TextBox to update
+        /// </summary>
+        private void BrowseIFCFile_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is Button button)) return;
+
+            try
+            {
+                var dialog = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "Select IFC Configuration File",
+                    Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                    FilterIndex = 1,
+                    CheckFileExists = false
+                };
+
+                // Determine which TextBox to update based on Button.Tag
+                TextBox targetTextBox = null;
+                string fileType = button.Tag?.ToString() ?? "";
+
+                if (fileType == "UserPsets")
+                {
+                    dialog.Title = "Select User-Defined Property Sets File";
+                    targetTextBox = UserPsetsPathTextBoxIFC;
+                }
+                else if (fileType == "ParamMapping")
+                {
+                    dialog.Title = "Select Parameter Mapping Table File";
+                    targetTextBox = ParamMappingPathTextBoxIFC;
+                }
+
+                if (targetTextBox == null)
+                {
+                    WriteDebugLog($"ERROR: Could not find target TextBox for button Tag='{fileType}'");
+                    return;
+                }
+
+                // Set initial directory if path exists
+                string currentPath = targetTextBox.Text;
+                if (!string.IsNullOrEmpty(currentPath))
+                {
+                    var directory = System.IO.Path.GetDirectoryName(currentPath);
+                    if (!string.IsNullOrEmpty(directory) && System.IO.Directory.Exists(directory))
+                    {
+                        dialog.InitialDirectory = directory;
+                    }
+                }
+
+                if (dialog.ShowDialog() == true)
+                {
+                    targetTextBox.Text = dialog.FileName;
+                    WriteDebugLog($"IFC file selected ({fileType}): {dialog.FileName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error in BrowseIFCFile_Click: {ex.Message}");
+                System.Windows.MessageBox.Show(
+                    $"Error selecting file: {ex.Message}",
+                    "Browse Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+        */
+
+        #endregion IFC Settings Event Handlers
+    }
 }

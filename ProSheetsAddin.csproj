@@ -85,6 +85,7 @@
     <Compile Include="Managers\PDFExportManager.cs" />
     <Compile Include="Managers\ProSheetsProfileManager.cs" />
     <Compile Include="Models\ParameterInfo.cs" />
+    <Compile Include="Utils\BrowseFileBehavior.cs" />
     <Compile Include="Utils\FileNameGenerator.cs" />
     <Compile Include="Utils\NotificationHelper.cs" />
     <Compile Include="Utils\ParameterUtils.cs" />

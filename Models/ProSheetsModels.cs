@@ -447,7 +447,14 @@ namespace ProSheetsAddin.Models
         public bool IsImgSelected
         {
             get => _selectedFormats.ContainsKey("IMG") && _selectedFormats["IMG"];
-            set { _selectedFormats["IMG"] = value; OnPropertyChanged(); OnPropertyChanged(nameof(SelectedFormats)); }
+            set { _selectedFormats["IMG"] = value; OnPropertyChanged(); OnPropertyChanged(nameof(SelectedFormats)); OnPropertyChanged(nameof(IsImageSelected)); }
+        }
+
+        // Alias for XAML binding compatibility
+        public bool IsImageSelected
+        {
+            get => IsImgSelected;
+            set => IsImgSelected = value;
         }
 
         // Data binding properties for UI
