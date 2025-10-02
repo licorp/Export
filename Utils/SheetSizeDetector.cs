@@ -108,7 +108,8 @@ namespace ProSheetsAddin.Utils
                     double widthFeet = outline.Max.U - outline.Min.U;
                     double heightFeet = outline.Max.V - outline.Min.V;
                     
-                    // Revit 2023 uses UnitTypeId
+                    // Revit 2021+ uses ForgeTypeId for units
+                    // UnitTypeId is available from Revit 2021 onwards
                     double widthMM = UnitUtils.ConvertFromInternalUnits(widthFeet, UnitTypeId.Millimeters);
                     double heightMM = UnitUtils.ConvertFromInternalUnits(heightFeet, UnitTypeId.Millimeters);
                     

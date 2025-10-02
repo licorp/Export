@@ -3,11 +3,11 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("ProSheetsAddin")]
-[assembly: AssemblyDescription("Revit Addin for batch exporting Views/Sheets to multiple formats")]
+[assembly: AssemblyDescription("Revit Addin for batch exporting Views/Sheets to multiple formats. Compatible with Revit 2023-2026")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Licorp Vietnam")]
 [assembly: AssemblyProduct("ProSheets Exporter")]
-[assembly: AssemblyCopyright("Copyright © Licorp Vietnam 2024")]
+[assembly: AssemblyCopyright("Copyright © Licorp Vietnam 2024-2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

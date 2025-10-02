@@ -1,18 +1,29 @@
-# ProSheets Exporter 2.0.0.0 - Revit Addin
+# ProSheets Exporter - Revit Addin
 
 **✅ BUILD THÀNH CÔNG - Giao diện hiện đại với WPF**
 
 Xuất hàng loạt các Views/Sheets từ Revit sang PDF, DWG, IFC và nhiều định dạng khác với giao diện chuyên nghiệp tương tự DiRoots ProSheets.
 
+## 🔧 Hỗ trợ Revit Versions
+
+✅ **Revit 2023** - Tested & Verified  
+✅ **Revit 2024** - Compatible  
+✅ **Revit 2025** - Compatible  
+✅ **Revit 2026** - Compatible  
+
+**Note**: Sử dụng modern Revit API (UnitTypeId, ForgeTypeId) đảm bảo tương thích lâu dài.  
+Xem chi tiết tại [COMPATIBILITY.md](COMPATIBILITY.md)
+
 ## 🎉 Trạng thái phát triển
 
 ✅ **Compilation**: THÀNH CÔNG - Build without errors  
-✅ **Interface**: Modern WPF với tab navigation (Selection/Format/Create)  
-✅ **Sheet Management**: DataGrid với checkbox selection  
+✅ **Interface**: Modern WPF với tab navigation  
+✅ **Sheet Management**: DataGrid với checkbox selection, paper size detection  
 ✅ **Format Selection**: Button interface cho PDF, DWG, IFC, JPG  
 ✅ **Export Configuration**: Folder browser và settings panel  
 ✅ **Vietnamese Support**: UI hoàn toàn bằng tiếng Việt  
 ✅ **Professional Design**: Thiết kế tương tự DiRoots ProSheets  
+✅ **Multi-Version Support**: Tương thích Revit 2023-2026  
 
 ## Tính năng chính
 
