@@ -84,10 +84,14 @@
     <Compile Include="Managers\SchedulingAssistant.cs" />
     <Compile Include="Managers\PDFExportManager.cs" />
     <Compile Include="Managers\ProSheetsProfileManager.cs" />
+    <Compile Include="Models\ParameterInfo.cs" />
     <Compile Include="Utils\FileNameGenerator.cs" />
     <Compile Include="Utils\NotificationHelper.cs" />
     <Compile Include="Utils\ParameterUtils.cs" />
     <Compile Include="Utils\SheetSizeDetector.cs" />
+    <Compile Include="Views\CustomFileNameDialog.xaml.cs">
+      <DependentUpon>CustomFileNameDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Views\ProSheetsMainWindow.xaml.cs">
       <DependentUpon>ProSheetsMainWindow.xaml</DependentUpon>
     </Compile>
@@ -95,6 +99,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Page Include="Views\CustomFileNameDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="Views\ProSheetsMainWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

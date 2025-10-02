@@ -1756,7 +1756,7 @@ Tiếp tục xuất file?";
 
         private void EditSelectedFilenames_Click(object sender, RoutedEventArgs e)
         {
-            WriteDebugLog("Edit Selected Filenames button clicked");
+            WriteDebugLog("Edit Selected Filenames button clicked - Opening CustomFileNameDialog");
             
             try
             {
@@ -1774,20 +1774,18 @@ Tiếp tục xuất file?";
                         return;
                     }
                     
-                    // Prompt for filename pattern
-                    string newFilename = PromptForFilename(
-                        "Edit Filename for Selected Sheets", 
-                        "Enter filename (will apply to all selected sheets)");
+                    // Open CustomFileNameDialog
+                    var dialog = new CustomFileNameDialog(_document);
+                    dialog.Owner = this;
                     
-                    if (!string.IsNullOrWhiteSpace(newFilename))
+                    if (dialog.ShowDialog() == true)
                     {
-                        foreach (var sheet in selectedSheets)
-                        {
-                            sheet.CustomFileName = newFilename;
-                        }
-                        WriteDebugLog($"Updated {selectedSheets.Count} sheets with filename: {newFilename}");
-                        MessageBox.Show($"Updated {selectedSheets.Count} sheet(s) filename.", "Success", 
-                                       MessageBoxButton.OK, MessageBoxImage.Information);
+                        // Apply custom file name configuration to selected sheets
+                        int updatedCount = ApplyCustomFileNameToSheets(selectedSheets, dialog.SelectedParameters);
+                        
+                        WriteDebugLog($"Updated {updatedCount} sheets with custom filename configuration");
+                        MessageBox.Show($"Successfully applied custom filename to {updatedCount} sheet(s).", 
+                                       "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 }
                 else
@@ -1802,20 +1800,18 @@ Tiếp tục xuất file?";
                         return;
                     }
                     
-                    // Prompt for filename pattern
-                    string newFilename = PromptForFilename(
-                        "Edit Filename for Selected Views", 
-                        "Enter filename (will apply to all selected views)");
+                    // Open CustomFileNameDialog
+                    var dialog = new CustomFileNameDialog(_document);
+                    dialog.Owner = this;
                     
-                    if (!string.IsNullOrWhiteSpace(newFilename))
+                    if (dialog.ShowDialog() == true)
                     {
-                        foreach (var view in selectedViews)
-                        {
-                            view.CustomFileName = newFilename;
-                        }
-                        WriteDebugLog($"Updated {selectedViews.Count} views with filename: {newFilename}");
-                        MessageBox.Show($"Updated {selectedViews.Count} view(s) filename.", "Success", 
-                                       MessageBoxButton.OK, MessageBoxImage.Information);
+                        // Apply custom file name configuration to selected views
+                        int updatedCount = ApplyCustomFileNameToViews(selectedViews, dialog.SelectedParameters);
+                        
+                        WriteDebugLog($"Updated {updatedCount} views with custom filename configuration");
+                        MessageBox.Show($"Successfully applied custom filename to {updatedCount} view(s).", 
+                                       "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 }
             }
@@ -1824,6 +1820,267 @@ Tiếp tục xuất file?";
                 WriteDebugLog($"Error editing selected filenames: {ex.Message}");
                 MessageBox.Show($"Error editing filenames: {ex.Message}", "Error", 
                                MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Apply custom filename configuration to sheets
+        /// </summary>
+        private int ApplyCustomFileNameToSheets(List<SheetItem> sheets, ObservableCollection<SelectedParameterInfo> parameters)
+        {
+            int count = 0;
+            
+            foreach (var sheetItem in sheets)
+            {
+                try
+                {
+                    // Get the actual ViewSheet element
+                    var sheet = _document.GetElement(sheetItem.Id) as ViewSheet;
+                    if (sheet == null) continue;
+                    
+                    // Generate custom filename from parameters
+                    string customFileName = GenerateCustomFileName(sheet, parameters);
+                    
+                    if (!string.IsNullOrWhiteSpace(customFileName))
+                    {
+                        sheetItem.CustomFileName = customFileName;
+                        count++;
+                        WriteDebugLog($"Sheet '{sheet.SheetNumber}' - Custom filename: {customFileName}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteDebugLog($"Error applying custom filename to sheet: {ex.Message}");
+                }
+            }
+            
+            return count;
+        }
+
+        /// <summary>
+        /// Apply custom filename configuration to views
+        /// </summary>
+        private int ApplyCustomFileNameToViews(List<ViewItem> views, ObservableCollection<SelectedParameterInfo> parameters)
+        {
+            int count = 0;
+            
+            foreach (var viewItem in views)
+            {
+                try
+                {
+                    // Get the actual View element
+                    var view = _document.GetElement(viewItem.ViewId) as View;
+                    if (view == null) continue;
+                    
+                    // Generate custom filename from parameters
+                    string customFileName = GenerateCustomFileNameFromView(view, parameters);
+                    
+                    if (!string.IsNullOrWhiteSpace(customFileName))
+                    {
+                        viewItem.CustomFileName = customFileName;
+                        count++;
+                        WriteDebugLog($"View '{view.Name}' - Custom filename: {customFileName}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteDebugLog($"Error applying custom filename to view: {ex.Message}");
+                }
+            }
+            
+            return count;
+        }
+
+        /// <summary>
+        /// Generate custom filename from ViewSheet parameters
+        /// </summary>
+        private string GenerateCustomFileName(ViewSheet sheet, ObservableCollection<SelectedParameterInfo> parameters)
+        {
+            if (parameters == null || parameters.Count == 0)
+                return null;
+            
+            var parts = new List<string>();
+            
+            foreach (var paramConfig in parameters)
+            {
+                string value = GetSheetParameterValue(sheet, paramConfig.ParameterName);
+                
+                if (!string.IsNullOrEmpty(value))
+                {
+                    string part = $"{paramConfig.Prefix}{value}{paramConfig.Suffix}";
+                    parts.Add(part);
+                }
+            }
+            
+            string separator = parameters.FirstOrDefault()?.Separator ?? "-";
+            return string.Join(separator, parts);
+        }
+
+        /// <summary>
+        /// Generate custom filename from View parameters
+        /// </summary>
+        private string GenerateCustomFileNameFromView(View view, ObservableCollection<SelectedParameterInfo> parameters)
+        {
+            if (parameters == null || parameters.Count == 0)
+                return null;
+            
+            var parts = new List<string>();
+            
+            foreach (var paramConfig in parameters)
+            {
+                string value = GetViewParameterValue(view, paramConfig.ParameterName);
+                
+                if (!string.IsNullOrEmpty(value))
+                {
+                    string part = $"{paramConfig.Prefix}{value}{paramConfig.Suffix}";
+                    parts.Add(part);
+                }
+            }
+            
+            string separator = parameters.FirstOrDefault()?.Separator ?? "-";
+            return string.Join(separator, parts);
+        }
+
+        /// <summary>
+        /// Get parameter value from ViewSheet
+        /// </summary>
+        private string GetSheetParameterValue(ViewSheet sheet, string parameterName)
+        {
+            try
+            {
+                // Try built-in parameters first
+                switch (parameterName)
+                {
+                    case "Sheet Number":
+                        return sheet.SheetNumber;
+                    case "Sheet Name":
+                        return sheet.Name;
+                    case "Current Revision":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)?.AsString() ?? "";
+                    case "Current Revision Date":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION_DATE)?.AsString() ?? "";
+                    case "Current Revision Description":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION_DESCRIPTION)?.AsString() ?? "";
+                    case "Approved By":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_APPROVED_BY)?.AsString() ?? "";
+                    case "Checked By":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_CHECKED_BY)?.AsString() ?? "";
+                    case "Designed By":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_DESIGNED_BY)?.AsString() ?? "";
+                    case "Drawn By":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_DRAWN_BY)?.AsString() ?? "";
+                    case "Sheet Issue Date":
+                        return sheet.get_Parameter(BuiltInParameter.SHEET_ISSUE_DATE)?.AsString() ?? "";
+                }
+                
+                // Try to find parameter by name
+                foreach (Parameter param in sheet.Parameters)
+                {
+                    if (param.Definition.Name.Equals(parameterName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return GetParameterValueAsString(param);
+                    }
+                }
+                
+                // Try project information parameters
+                var projectInfo = _document.ProjectInformation;
+                if (projectInfo != null)
+                {
+                    foreach (Parameter param in projectInfo.Parameters)
+                    {
+                        if (param.Definition.Name.Equals(parameterName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return GetParameterValueAsString(param);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error getting parameter '{parameterName}': {ex.Message}");
+            }
+            
+            return "";
+        }
+
+        /// <summary>
+        /// Get parameter value from View
+        /// </summary>
+        private string GetViewParameterValue(View view, string parameterName)
+        {
+            try
+            {
+                // Try built-in parameters first
+                switch (parameterName)
+                {
+                    case "View Name":
+                        return view.Name;
+                    case "View Template":
+                        var templateId = view.ViewTemplateId;
+                        if (templateId != ElementId.InvalidElementId)
+                        {
+                            var template = _document.GetElement(templateId);
+                            return template?.Name ?? "";
+                        }
+                        return "";
+                }
+                
+                // Try to find parameter by name
+                foreach (Parameter param in view.Parameters)
+                {
+                    if (param.Definition.Name.Equals(parameterName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return GetParameterValueAsString(param);
+                    }
+                }
+                
+                // Try project information parameters
+                var projectInfo = _document.ProjectInformation;
+                if (projectInfo != null)
+                {
+                    foreach (Parameter param in projectInfo.Parameters)
+                    {
+                        if (param.Definition.Name.Equals(parameterName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return GetParameterValueAsString(param);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error getting view parameter '{parameterName}': {ex.Message}");
+            }
+            
+            return "";
+        }
+
+        /// <summary>
+        /// Get parameter value as string regardless of storage type
+        /// </summary>
+        private string GetParameterValueAsString(Parameter param)
+        {
+            if (param == null || !param.HasValue)
+                return "";
+            
+            switch (param.StorageType)
+            {
+                case StorageType.String:
+                    return param.AsString() ?? "";
+                case StorageType.Integer:
+                    return param.AsInteger().ToString();
+                case StorageType.Double:
+                    return param.AsValueString() ?? param.AsDouble().ToString();
+                case StorageType.ElementId:
+                    var elemId = param.AsElementId();
+                    if (elemId != ElementId.InvalidElementId)
+                    {
+                        var elem = _document.GetElement(elemId);
+                        return elem?.Name ?? "";
+                    }
+                    return "";
+                default:
+                    return "";
             }
         }
         
