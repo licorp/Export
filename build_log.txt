@@ -1,0 +1,6 @@
+Build started at 5:19 AM...
+1>------ Skipped Build: Project: ProSheetsAddin ------
+1> 
+========== Build: 0 succeeded or up-to-date, 0 failed, 1 skipped ==========
+========== Build completed at 5:19 AM and took 00.069 seconds ==========
+

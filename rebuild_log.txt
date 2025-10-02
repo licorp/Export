@@ -1,0 +1,6 @@
+Rebuild started at 5:19 AM...
+1>------ Skipped Rebuild All: Project: ProSheetsAddin ------
+1> 
+========== Rebuild All: 0 succeeded, 0 failed, 1 skipped ==========
+========== Rebuild completed at 5:19 AM and took 00.053 seconds ==========
+

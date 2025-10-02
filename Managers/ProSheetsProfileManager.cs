@@ -371,5 +371,61 @@ namespace ProSheetsAddin.Managers
 
             return profile;
         }
+
+        /// <summary>
+        /// Load profile from external JSON file (import)
+        /// </summary>
+        public ProSheetsProfile LoadProfileFromFile(string jsonFilePath)
+        {
+            try
+            {
+                if (!File.Exists(jsonFilePath))
+                {
+                    WriteDebugLog($"Profile file not found: {jsonFilePath}");
+                    return null;
+                }
+
+                string json = File.ReadAllText(jsonFilePath);
+                var profile = JsonConvert.DeserializeObject<ProSheetsProfile>(json);
+                
+                if (profile != null)
+                {
+                    WriteDebugLog($"Profile loaded from file: {profile.ProfileName}");
+                    return profile;
+                }
+                
+                return null;
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error loading profile from file: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Export profile to external JSON file
+        /// </summary>
+        public void ExportProfileToFile(ProSheetsProfile profile, string jsonFilePath)
+        {
+            try
+            {
+                if (profile == null)
+                {
+                    WriteDebugLog("Cannot export profile: profile is null");
+                    return;
+                }
+
+                string json = JsonConvert.SerializeObject(profile, Formatting.Indented);
+                File.WriteAllText(jsonFilePath, json);
+                
+                WriteDebugLog($"Profile exported to: {jsonFilePath}");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error exporting profile to file: {ex.Message}");
+                throw;
+            }
+        }
     }
 }

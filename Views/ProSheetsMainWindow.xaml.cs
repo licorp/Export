@@ -185,6 +185,7 @@ namespace ProSheetsAddin.Views
             LoadSheets();
             LoadViews();
             UpdateFormatSelection();
+            UpdateNavigationButtons();
             
             WriteDebugLog("===== EXPORT + CONSTRUCTOR COMPLETED SUCCESSFULLY =====");
         }
@@ -778,10 +779,6 @@ Tiếp tục xuất file?";
         // ViewDebugLog_Click method removed - use DebugView instead to see OutputDebugStringA logs
 
         // Legacy event handlers for compatibility
-        private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            WriteDebugLog("[ProSheets] Tab selection changed");
-        }
 
         private void SheetsDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -992,39 +989,55 @@ Tiếp tục xuất file?";
             }
         }
 
-        private void AddProfile_Click(object sender, RoutedEventArgs e)
+        private void ImportProfile_Click(object sender, RoutedEventArgs e)
         {
-            WriteDebugLog("Add Profile clicked");
+            WriteDebugLog("Import Profile clicked");
             try
             {
-                // Simple dialog for profile name
-                string profileName = "New Profile " + DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                
-                if (!string.IsNullOrEmpty(profileName))
+                // Open file dialog to select JSON profile
+                var openFileDialog = new Microsoft.Win32.OpenFileDialog
                 {
-                    var newProfile = _profileManager.CreateProfileFromSettings(ExportSettings, profileName);
-                    _profileManager.SaveProfile(newProfile);
+                    Title = "Import Profile from JSON",
+                    Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+                    DefaultExt = ".json"
+                };
+
+                if (openFileDialog.ShowDialog() == true)
+                {
+                    string jsonPath = openFileDialog.FileName;
+                    WriteDebugLog($"Selected JSON file: {jsonPath}");
                     
-                    // Set as current profile
-                    _selectedProfile = newProfile;
-                    WriteDebugLog($"New profile created: {profileName}");
+                    // Read and import profile
+                    var profile = _profileManager.LoadProfileFromFile(jsonPath);
+                    if (profile != null)
+                    {
+                        _profileManager.SaveProfile(profile);
+                        _selectedProfile = profile;
+                        
+                        // Refresh profile list
+                        InitializeProfiles();
+                        
+                        WriteDebugLog($"Profile imported: {profile.ProfileName}");
+                        MessageBox.Show($"Profile '{profile.ProfileName}' đã được import thành công!", 
+                                       "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                WriteDebugLog($"Error creating new profile: {ex.Message}");
-                MessageBox.Show($"Lỗi tạo profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+                WriteDebugLog($"Error importing profile: {ex.Message}");
+                MessageBox.Show($"Lỗi import profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void SaveProfile_Click(object sender, RoutedEventArgs e)
+        private void ExportProfile_Click(object sender, RoutedEventArgs e)
         {
-            WriteDebugLog("Save Profile clicked");
+            WriteDebugLog("Export Profile clicked");
             try
             {
                 if (_selectedProfile != null)
                 {
-                    // Update selected profile with current settings
+                    // Update profile with current settings
                     _selectedProfile.OutputFolder = ExportSettings.OutputFolder;
                     _selectedProfile.CreateSeparateFolders = ExportSettings.CreateSeparateFolders;
                     _selectedProfile.HideCropRegions = ExportSettings.HideCropBoundaries;
@@ -1038,17 +1051,38 @@ Tiếp tục xuất file?";
                     if (ExportSettings.IsImgSelected) formats.Add("IMG");
                     _selectedProfile.SelectedFormats = formats;
                     
+                    // Save to internal storage first
                     _profileManager.SaveProfile(_selectedProfile);
-                    WriteDebugLog($"Profile saved: {_selectedProfile.ProfileName}");
                     
-                    MessageBox.Show($"Profile '{_selectedProfile.ProfileName}' đã được lưu thành công!", 
-                                   "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
+                    // Open save dialog to export to JSON file
+                    var saveFileDialog = new Microsoft.Win32.SaveFileDialog
+                    {
+                        Title = "Export Profile to JSON",
+                        Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+                        DefaultExt = ".json",
+                        FileName = _selectedProfile.ProfileName + ".json"
+                    };
+                    
+                    if (saveFileDialog.ShowDialog() == true)
+                    {
+                        string jsonPath = saveFileDialog.FileName;
+                        _profileManager.ExportProfileToFile(_selectedProfile, jsonPath);
+                        
+                        WriteDebugLog($"Profile exported to: {jsonPath}");
+                        MessageBox.Show($"Profile '{_selectedProfile.ProfileName}' đã được export thành công!", 
+                                       "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Vui lòng chọn một profile trước!", "Thông báo", 
+                                   MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
-                WriteDebugLog($"Error saving profile: {ex.Message}");
-                MessageBox.Show($"Lỗi lưu profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+                WriteDebugLog($"Error exporting profile: {ex.Message}");
+                MessageBox.Show($"Lỗi export profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1084,67 +1118,58 @@ Tiếp tục xuất file?";
             }
         }
 
-        private void ImportProfile_Click(object sender, RoutedEventArgs e)
+        #region Navigation Methods
+
+        private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            WriteDebugLog("Import Profile clicked");
+            UpdateNavigationButtons();
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Back button clicked");
+            
+            if (MainTabControl.SelectedIndex > 0)
+            {
+                MainTabControl.SelectedIndex--;
+                WriteDebugLog($"Navigated to tab index: {MainTabControl.SelectedIndex}");
+            }
+        }
+
+        private void NextButton_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Next button clicked");
+            
+            if (MainTabControl.SelectedIndex < MainTabControl.Items.Count - 1)
+            {
+                MainTabControl.SelectedIndex++;
+                WriteDebugLog($"Navigated to tab index: {MainTabControl.SelectedIndex}");
+            }
+        }
+
+        private void UpdateNavigationButtons()
+        {
             try
             {
-                var openFileDialog = new Microsoft.Win32.OpenFileDialog
-                {
-                    Title = "Chọn file ProSheets profile",
-                    Filter = "ProSheets files (*.xml;*.json)|*.xml;*.json|XML files (*.xml)|*.xml|JSON files (*.json)|*.json|All files (*.*)|*.*",
-                    DefaultExt = ".xml"
-                };
-
-                // Try to default to ProSheets folder if exists
-                var diRootsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), 
-                                              "DiRoots", "ProSheets");
-                if (Directory.Exists(diRootsPath))
-                {
-                    openFileDialog.InitialDirectory = diRootsPath;
-                }
-
-                if (openFileDialog.ShowDialog() == true)
-                {
-                    string extension = Path.GetExtension(openFileDialog.FileName).ToLower();
-                    
-                    if (extension == ".xml")
-                    {
-                        // Handle XML profile import with custom file name generation
-                        ImportXMLProfile(openFileDialog.FileName);
-                    }
-                    else if (extension == ".json")
-                    {
-                        // Handle JSON profile import (existing functionality)
-                        _profileManager.LoadProSheetsProfile(openFileDialog.FileName);
-                        
-                        // Select the newly imported profile
-                        var fileName = Path.GetFileNameWithoutExtension(openFileDialog.FileName);
-                        var importedProfile = _profileManager.Profiles.FirstOrDefault(p => 
-                            p.ProfileName.Contains(fileName) || fileName.Contains(p.ProfileName));
-                        
-                        if (importedProfile != null)
-                        {
-                            _selectedProfile = importedProfile;
-                            ApplyProfileToSettings(_selectedProfile);
-                            WriteDebugLog($"JSON Profile imported successfully: {importedProfile.ProfileName}");
-                            MessageBox.Show($"Đã import JSON profile: {importedProfile.ProfileName}", 
-                                           "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
-                        }
-                    }
-                    else
-                    {
-                        MessageBox.Show("Định dạng file không được hỗ trợ. Vui lòng chọn file .xml hoặc .json", 
-                                       "Lỗi", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    }
-                }
+                int selectedIndex = MainTabControl.SelectedIndex;
+                int totalTabs = MainTabControl.Items.Count;
+                
+                // Tab 0 = Sheets: Back disabled, Next enabled
+                // Tab 1 = Format: Both enabled
+                // Tab 2 = Create: Back enabled, Next disabled
+                
+                BackButton.IsEnabled = selectedIndex > 0;
+                NextButton.IsEnabled = selectedIndex < totalTabs - 1;
+                
+                WriteDebugLog($"Navigation buttons updated - Tab: {selectedIndex}, Back: {BackButton.IsEnabled}, Next: {NextButton.IsEnabled}");
             }
             catch (Exception ex)
             {
-                WriteDebugLog($"Error importing profile: {ex.Message}");
-                MessageBox.Show($"Lỗi import profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+                WriteDebugLog($"Error updating navigation buttons: {ex.Message}");
             }
         }
+
+        #endregion
 
         private void ImportXMLProfile(string xmlFilePath)
         {

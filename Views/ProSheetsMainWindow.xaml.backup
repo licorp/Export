@@ -112,8 +112,7 @@
         </Grid.RowDefinitions>
 
         <!-- Main Content -->
-        <TabControl x:Name="MainTabControl" Grid.Row="0" Background="White" BorderThickness="0"
-                    SelectionChanged="MainTabControl_SelectionChanged">
+        <TabControl x:Name="MainTabControl" Grid.Row="0" Background="White" BorderThickness="0" SelectionChanged="TabControl_SelectionChanged">
             <!-- Sheets Tab -->
             <TabItem x:Name="SheetsTab">
                 <TabItem.Header>
@@ -135,42 +134,26 @@
                     <!-- Profile Manager Bar -->
                     <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E1E1E1" BorderThickness="1" 
                             CornerRadius="3" Padding="15" Margin="0,15,0,15">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <!-- Label bên trái -->
-                            <TextBlock Grid.Column="0" Text="Profile:" VerticalAlignment="Center" 
-                                       Margin="0,0,10,0" FontWeight="SemiBold" FontSize="14"/>
-                            
-                            <!-- ComboBox giữa -->
-                            <ComboBox Grid.Column="1" x:Name="ProfileComboBox" Height="32" 
-                                      MinWidth="200" MaxWidth="400" HorizontalAlignment="Stretch"
-                                      Margin="0,0,10,0"
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock Text="Profile:" VerticalAlignment="Center" Margin="0,0,15,0" FontWeight="SemiBold" FontSize="14"/>
+                            <ComboBox x:Name="ProfileComboBox" Width="250" Height="32" Margin="0,0,15,0"
                                       ItemsSource="{Binding Profiles}"
                                       SelectedItem="{Binding SelectedProfile}"
                                       DisplayMemberPath="ProfileName"
                                       SelectionChanged="ProfileComboBox_SelectionChanged"/>
-                            
-                            <!-- Buttons bên phải -->
-                            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                <Button Content="Add" Width="80" Height="32" Margin="0,0,8,0" 
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        ToolTip="Import profile from JSON file"
-                                        Click="ImportProfile_Click"/>
-                                <Button Content="Save" Width="80" Height="32" Margin="0,0,8,0"
-                                        Style="{StaticResource SecondaryButtonStyle}" 
-                                        ToolTip="Export profile to JSON file"
-                                        Click="ExportProfile_Click"/>
-                                <Button Content="Del" Width="80" Height="32" Margin="0,0,0,0"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        ToolTip="Delete current profile"
-                                        Click="DeleteProfile_Click"/>
-                            </StackPanel>
-                        </Grid>
+                            <Button Content="Add" Width="80" Height="32" Margin="0,0,8,0" 
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    ToolTip="Add new profile or import existing profile"
+                                    Click="AddProfile_Click"/>
+                            <Button Content="Save" Width="80" Height="32" Margin="0,0,8,0"
+                                    Style="{StaticResource SecondaryButtonStyle}" 
+                                    ToolTip="Save current profile"
+                                    Click="SaveProfile_Click"/>
+                            <Button Content="Del" Width="80" Height="32" Margin="0,0,0,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    ToolTip="Delete profile"
+                                    Click="DeleteProfile_Click"/>
+                        </StackPanel>
                     </Border>
 
                     <!-- Top Control Bar -->
@@ -262,6 +245,7 @@
                               CanUserDeleteRows="False"
                               CanUserResizeRows="False"
                               CanUserResizeColumns="True"
+                              ColumnHeadersVisibility="Visible"
                               SelectionChanged="SheetsDataGrid_SelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Width="40" CanUserResize="False" Header="">

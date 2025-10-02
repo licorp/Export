@@ -1,6 +1,0 @@
-C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\Debug\ProSheetsAddin.csproj.AssemblyReference.cache
-C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\Debug\Views\MainWindow.baml
-C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\Debug\Views\MainWindow.g.cs
-C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\Debug\ProSheetsAddin_MarkupCompile.cache
-C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\Debug\ProSheetsAddin.g.resources
-C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\Debug\ProSheetsAddin.csproj.CoreCompileInputs.cache

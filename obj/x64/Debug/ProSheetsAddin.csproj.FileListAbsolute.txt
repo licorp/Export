@@ -12,3 +12,17 @@ C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\Re
 C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin.g.resources
 C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheetsAddin.csproj.CoreCompileInputs.cache
 C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\obj\x64\Debug\ProSheet.F522D3D8.Up2Date
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin.csproj.AssemblyReference.cache
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin.csproj.CoreCompileInputs.cache
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin_MarkupCompile.cache
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\Views\ProSheetsMainWindow.g.cs
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin_MarkupCompile.lref
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\bin\Debug\ProSheetsAddin.dll
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\bin\Debug\ProSheetsAddin.pdb
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\bin\Debug\Newtonsoft.Json.dll
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\bin\Debug\Newtonsoft.Json.xml
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\Views\ProSheetsMainWindow.baml
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin.g.resources
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheet.F522D3D8.Up2Date
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin.dll
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\ProSheetsAddin.pdb
