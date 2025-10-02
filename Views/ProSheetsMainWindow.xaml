@@ -103,6 +103,17 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="10,8"/>
         </Style>
+        
+        <!-- Custom File Name Column Header Style (darker background) -->
+        <Style x:Key="CustomFileNameHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#E8E8E8"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
     </Window.Resources>
 
     <Grid Background="#FAFAFA">
@@ -173,85 +184,108 @@
                         </Grid>
                     </Border>
 
-                    <!-- Top Control Bar -->
-                    <Grid Grid.Row="1" Margin="0,0,0,15">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                    <!-- Top Control Bar - Ribbon -->
+                    <Border Grid.Row="1" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" 
+                            Padding="10,8" Margin="0,0,0,15">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                        <!-- Radio Buttons for Sheets/Views -->
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,20,0">
-                            <RadioButton x:Name="SheetsRadio" Content="Sheets" IsChecked="True" GroupName="ViewType" 
-                                         VerticalAlignment="Center" Margin="0,0,15,0" FontSize="14"
-                                         Checked="SheetsRadio_Checked"/>
-                            <RadioButton x:Name="ViewsRadio" Content="Views" GroupName="ViewType" 
-                                         VerticalAlignment="Center" FontSize="14"
-                                         Checked="ViewsRadio_Checked"/>
-                        </StackPanel>
-
-                        <!-- View/Sheet Set Dropdown -->
-                        <TextBlock Grid.Column="1" Text="View/Sheet Set:" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="13"/>
-                        <ComboBox Grid.Column="2" x:Name="ViewSheetSetCombo" Width="150" Height="28" Margin="0,0,10,0"
-                                  SelectionChanged="ViewSheetSetCombo_SelectionChanged">
-                            <ComboBoxItem Content="&lt;None&gt;" IsSelected="True"/>
-                            <ComboBoxItem Content="All Sheets"/>
-                            <ComboBoxItem Content="Architectural"/>
-                            <ComboBoxItem Content="Structural"/>
-                            <ComboBoxItem Content="MEP"/>
-                        </ComboBox>
-
-                        <!-- Filter and Save Buttons -->
-                        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,10,0">
-                            <Button Content="Filter" Width="60" Height="28" Margin="0,0,5,0"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    ToolTip="Filter sheets/views by selected View/Sheet Set"
-                                    Click="FilterByVSSet_Click"/>
-                            <Button Content="Reset" Width="50" Height="28" Margin="0,0,10,0"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    ToolTip="Reset filter and show all items"
-                                    Click="ResetFilter_Click"/>
-                        </StackPanel>
-
-                        <!-- Custom File Name Actions -->
-                        <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="0,0,10,0">
-
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="Custom Filename" Height="40" Width="150"
-                                            Style="{StaticResource PrimaryButtonStyle}"
-                                            ToolTip="Set custom filename for all selected sheets/views"
-                                            Click="SetAllCustomFileName_Click"/>
+                            <!-- Radio Buttons for Sheets/Views -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,15,0">
+                                <RadioButton x:Name="SheetsRadio" Content="Sheets" IsChecked="True" GroupName="ViewType" 
+                                             VerticalAlignment="Center" Margin="0,0,10,0" FontSize="12"
+                                             Checked="SheetsRadio_Checked"/>
+                                <RadioButton x:Name="ViewsRadio" Content="Views" GroupName="ViewType" 
+                                             VerticalAlignment="Center" FontSize="12"
+                                             Checked="ViewsRadio_Checked"/>
                             </StackPanel>
 
-                        </StackPanel>
+                            <!-- View/Sheet Set Label -->
+                            <TextBlock Grid.Column="1" Text="View/Sheet Set" VerticalAlignment="Center" 
+                                       Margin="0,0,8,0" FontSize="12"/>
 
-                        <!-- Search TextBox -->
-                        <TextBox Grid.Column="5" x:Name="SearchTextBox" Width="200" Height="40" 
-                                 VerticalContentAlignment="Center" FontSize="13"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
-                            <TextBox.Style>
-                                <Style TargetType="TextBox">
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="TextBox">
-                                                <Border Background="White" BorderBrush="#E1E1E1" BorderThickness="1" CornerRadius="3">
-                                                    <Grid>
-                                                        <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" BorderThickness="0" Margin="8,5"/>
-                                                        <TextBlock Text="Search..." Foreground="#999" Margin="10,8" 
-                                                                   IsHitTestVisible="False" Visibility="{Binding Text.IsEmpty, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                    </Grid>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </TextBox.Style>
-                        </TextBox>
-                    </Grid>
+                            <!-- Filter Checkbox + Dropdown -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <CheckBox x:Name="FilterByVSCheckBox" 
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,6,0"
+                                         Checked="FilterByVSCheckBox_Checked"
+                                         Unchecked="FilterByVSCheckBox_Unchecked"
+                                         ToolTip="Enable filtering by View/Sheet Set"/>
+                                
+                                <ComboBox x:Name="ViewSheetSetCombo" Width="140" Height="24" 
+                                          SelectionChanged="ViewSheetSetCombo_SelectionChanged"
+                                          BorderBrush="#CCCCCC" BorderThickness="1" Background="White"
+                                          Padding="6,2" FontSize="12">
+                                    <ComboBoxItem Content="Filter by V/S Sets" IsSelected="True"/>
+                                    <ComboBoxItem Content="All Sheets"/>
+                                    <ComboBoxItem Content="Architectural"/>
+                                    <ComboBoxItem Content="Structural"/>
+                                    <ComboBoxItem Content="MEP"/>
+                                    <ComboBoxItem Content="Site"/>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Save V/S Set Button -->
+                            <Button Grid.Column="3" Content="Save V/S Set" Width="90" Height="24" 
+                                    Margin="0,0,10,0" FontSize="12"
+                                    Background="White" BorderBrush="#CCCCCC" BorderThickness="1"
+                                    Click="SaveVSSet_Click"
+                                    ToolTip="Save current selection as View/Sheet Set">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="2" Padding="8,2">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#F0F0F0"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+
+                            <!-- Search TextBox -->
+                            <TextBox Grid.Column="5" x:Name="SearchTextBox" Width="200" Height="24" 
+                                     VerticalContentAlignment="Center" FontSize="12"
+                                     BorderBrush="#CCCCCC" BorderThickness="1"
+                                     Padding="24,2,6,2"
+                                     TextChanged="SearchTextBox_TextChanged">
+                                <TextBox.Template>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="2">
+                                            <Grid>
+                                                <ScrollViewer x:Name="PART_ContentHost" 
+                                                             Margin="{TemplateBinding Padding}"
+                                                             VerticalAlignment="Center"/>
+                                                <TextBlock Text="🔍" 
+                                                          HorizontalAlignment="Left" 
+                                                          VerticalAlignment="Center"
+                                                          Margin="6,0,0,0"
+                                                          Foreground="#999999"
+                                                          IsHitTestVisible="False"
+                                                          FontSize="12"/>
+                                            </Grid>
+                                        </Border>
+                                    </ControlTemplate>
+                                </TextBox.Template>
+                            </TextBox>
+                        </Grid>
+                    </Border>
 
                     <!-- DataGrid -->
                     <DataGrid Grid.Row="3" x:Name="SheetsDataGrid" 
@@ -268,7 +302,8 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" 
-                                                  HorizontalAlignment="Center"/>
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -309,13 +344,59 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                             
-                            <DataGridTemplateColumn Width="200" Header="Custom File Name" CanUserResize="True">
+                            <DataGridTemplateColumn Width="*" CanUserResize="True">
+                                <DataGridTemplateColumn.HeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Background" Value="#E8E8E8"/>
+                                    </Style>
+                                </DataGridTemplateColumn.HeaderStyle>
+                                <DataGridTemplateColumn.Header>
+                                    <Button Content="Custom File Name"
+                                           HorizontalAlignment="Stretch"
+                                           HorizontalContentAlignment="Left"
+                                           Background="Transparent"
+                                           BorderThickness="0"
+                                           Padding="8,8"
+                                           Cursor="Hand"
+                                           FontWeight="SemiBold"
+                                           Click="EditSelectedFilenames_Click"
+                                           ToolTip="Click to edit filename for selected sheets">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                    BorderThickness="0"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" 
+                                                                                VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#D0D0D0"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsPressed" Value="True">
+                                                                    <Setter Property="Background" Value="#C0C0C0"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBox Text="{Binding CustomFileName, UpdateSourceTrigger=PropertyChanged}" 
-                                                 Margin="8,5" Background="Transparent" BorderThickness="0"
-                                                 VerticalContentAlignment="Center" 
-                                                 ToolTip="Custom file name (use button above to set for all)"/>
+                                                Margin="8,5" 
+                                                Background="Transparent" 
+                                                BorderThickness="0"
+                                                IsReadOnly="True"
+                                                VerticalContentAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -339,7 +420,8 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" 
-                                                  HorizontalAlignment="Center"/>
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -405,13 +487,57 @@
                             </DataGridTextColumn>
                             
                             <!-- Custom File Name (Editable) -->
-                            <DataGridTemplateColumn Width="*" Header="Custom File Name" CanUserResize="True">
+                            <DataGridTemplateColumn Width="*" CanUserResize="True">
+                                <DataGridTemplateColumn.HeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="Background" Value="#E8E8E8"/>
+                                    </Style>
+                                </DataGridTemplateColumn.HeaderStyle>
+                                <DataGridTemplateColumn.Header>
+                                    <Button Content="Custom File Name"
+                                           HorizontalAlignment="Stretch"
+                                           HorizontalContentAlignment="Left"
+                                           Background="Transparent"
+                                           BorderThickness="0"
+                                           Padding="8,8"
+                                           Cursor="Hand"
+                                           FontWeight="SemiBold"
+                                           Click="EditSelectedFilenames_Click"
+                                           ToolTip="Click to edit filename for selected views">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                    BorderThickness="0"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" 
+                                                                                VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#D0D0D0"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsPressed" Value="True">
+                                                                    <Setter Property="Background" Value="#C0C0C0"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBox Text="{Binding CustomFileName, UpdateSourceTrigger=PropertyChanged}" 
                                                  Margin="8,5" Background="Transparent" BorderThickness="0"
-                                                 VerticalContentAlignment="Center"
-                                                 ToolTip="Custom file name (use button above to set for all)"/>
+                                                 IsReadOnly="True"
+                                                 VerticalContentAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

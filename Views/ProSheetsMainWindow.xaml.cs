@@ -291,31 +291,8 @@ namespace ProSheetsAddin.Views
                     }
                     catch { revision = ""; }
 
-                    // Get sheet size
-                    string sheetSize = "";
-                    try 
-                    {
-                        Parameter sizeParam = sheet.get_Parameter(BuiltInParameter.SHEET_HEIGHT);
-                        if (sizeParam != null)
-                        {
-                            double height = sizeParam.AsDouble();
-                            Parameter widthParam = sheet.get_Parameter(BuiltInParameter.SHEET_WIDTH);
-                            double width = widthParam?.AsDouble() ?? 0;
-                            
-                            // Convert from feet to mm (Revit internal units are feet)
-                            height = height * 304.8;
-                            width = width * 304.8;
-                            
-                            // Determine standard paper size
-                            if (Math.Abs(height - 297) < 10 && Math.Abs(width - 210) < 10) sheetSize = "A4";
-                            else if (Math.Abs(height - 420) < 10 && Math.Abs(width - 297) < 10) sheetSize = "A3";
-                            else if (Math.Abs(height - 594) < 10 && Math.Abs(width - 420) < 10) sheetSize = "A2";
-                            else if (Math.Abs(height - 841) < 10 && Math.Abs(width - 594) < 10) sheetSize = "A1";
-                            else if (Math.Abs(height - 1189) < 10 && Math.Abs(width - 841) < 10) sheetSize = "A0";
-                            else sheetSize = $"{width:0}x{height:0}";
-                        }
-                    }
-                    catch { sheetSize = "Unknown"; }
+                    // Get paper size using SheetSizeDetector
+                    string sheetSize = Utils.SheetSizeDetector.GetSheetSize(sheet);
                     
                     var sheetItem = new SheetItem
                     {
@@ -328,7 +305,7 @@ namespace ProSheetsAddin.Views
                         CustomFileName = $"{sheet.SheetNumber ?? "UNKNOWN"}_{(sheet.Name ?? "UNKNOWN").Replace(" ", "_")}"
                     };
                     
-                    WriteDebugLog($"Created SheetItem: Number='{sheetItem.SheetNumber}', Name='{sheetItem.SheetName}'");
+                    WriteDebugLog($"Created SheetItem: Number='{sheetItem.SheetNumber}', Name='{sheetItem.SheetName}', Size='{sheetSize}'");
                     
                     // Subscribe to PropertyChanged to track selection changes
                     sheetItem.PropertyChanged += (s, e) => 
@@ -831,15 +808,47 @@ Tiếp tục xuất file?";
             if (combo?.SelectedItem is ComboBoxItem item)
             {
                 WriteDebugLog($"View/Sheet Set changed to: {item.Content}");
-                // Auto-filter when selection changes
+                // Auto-filter if checkbox is checked
+                if (FilterByVSCheckBox?.IsChecked == true)
+                {
+                    FilterSheetsBySet(item.Content.ToString());
+                }
+            }
+        }
+
+        private void FilterByVSCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Filter by V/S checkbox checked - enabling filter");
+            // Apply filter based on current combo selection
+            if (ViewSheetSetCombo?.SelectedItem is ComboBoxItem item)
+            {
                 FilterSheetsBySet(item.Content.ToString());
             }
+        }
+
+        private void FilterByVSCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Filter by V/S checkbox unchecked - showing all items");
+            // Reset to show all sheets/views
+            ResetFilter_Click(sender, e);
         }
 
         private void SaveVSSet_Click(object sender, RoutedEventArgs e)
         {
             WriteDebugLog("Save View/Sheet Set clicked");
-            // TODO: Implement save set logic
+            
+            int count = 0;
+            if (SheetsRadio.IsChecked == true)
+            {
+                count = Sheets?.Where(s => s.IsSelected).Count() ?? 0;
+            }
+            else
+            {
+                count = Views?.Where(v => v.IsSelected).Count() ?? 0;
+            }
+            
+            MessageBox.Show($"Save View/Sheet Set with {count} selected items", 
+                           "Save V/S Set", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -848,8 +857,45 @@ Tiếp tục xuất file?";
             string searchText = searchBox?.Text?.ToLower() ?? "";
             WriteDebugLog($"Search text changed: '{searchText}'");
             
-            // Search filtering will be implemented when DataGrid is properly connected
-            WriteDebugLog($"Search functionality available but DataGrid connection pending");
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                // Show all items when search is empty
+                if (SheetsDataGrid.Visibility == System.Windows.Visibility.Visible)
+                {
+                    SheetsDataGrid.ItemsSource = Sheets;
+                }
+                else if (ViewsDataGrid.Visibility == System.Windows.Visibility.Visible)
+                {
+                    ViewsDataGrid.ItemsSource = Views;
+                }
+            }
+            else
+            {
+                // Filter based on current view
+                if (SheetsDataGrid.Visibility == System.Windows.Visibility.Visible && Sheets != null)
+                {
+                    var filtered = Sheets.Where(s => 
+                        (s.SheetNumber?.ToLower().Contains(searchText) ?? false) ||
+                        (s.SheetName?.ToLower().Contains(searchText) ?? false) ||
+                        (s.CustomFileName?.ToLower().Contains(searchText) ?? false)
+                    ).ToList();
+                    
+                    SheetsDataGrid.ItemsSource = filtered;
+                    WriteDebugLog($"Filtered sheets: {filtered.Count} of {Sheets.Count}");
+                }
+                else if (ViewsDataGrid.Visibility == System.Windows.Visibility.Visible && Views != null)
+                {
+                    var filtered = Views.Where(v => 
+                        (v.ViewName?.ToLower().Contains(searchText) ?? false) ||
+                        (v.ViewType?.ToLower().Contains(searchText) ?? false) ||
+                        (v.CustomFileName?.ToLower().Contains(searchText) ?? false)
+                    ).ToList();
+                    
+                    ViewsDataGrid.ItemsSource = filtered;
+                    WriteDebugLog($"Filtered views: {filtered.Count} of {Views.Count}");
+                }
+            }
+            
             UpdateStatusText();
         }
 
@@ -1706,6 +1752,145 @@ Tiếp tục xuất file?";
                 WriteDebugLog($"Error in SetCustomFileName_Click: {ex.Message}");
                 MessageBox.Show($"Lỗi khi set custom file name: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void EditSelectedFilenames_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Edit Selected Filenames button clicked");
+            
+            try
+            {
+                bool isSheetMode = SheetsRadio?.IsChecked == true;
+                
+                if (isSheetMode)
+                {
+                    // Get selected sheets
+                    var selectedSheets = Sheets?.Where(s => s.IsSelected).ToList();
+                    
+                    if (selectedSheets == null || !selectedSheets.Any())
+                    {
+                        MessageBox.Show("Please select at least one sheet first.", "No Selection", 
+                                       MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    
+                    // Prompt for filename pattern
+                    string newFilename = PromptForFilename(
+                        "Edit Filename for Selected Sheets", 
+                        "Enter filename (will apply to all selected sheets)");
+                    
+                    if (!string.IsNullOrWhiteSpace(newFilename))
+                    {
+                        foreach (var sheet in selectedSheets)
+                        {
+                            sheet.CustomFileName = newFilename;
+                        }
+                        WriteDebugLog($"Updated {selectedSheets.Count} sheets with filename: {newFilename}");
+                        MessageBox.Show($"Updated {selectedSheets.Count} sheet(s) filename.", "Success", 
+                                       MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                else
+                {
+                    // Get selected views
+                    var selectedViews = Views?.Where(v => v.IsSelected).ToList();
+                    
+                    if (selectedViews == null || !selectedViews.Any())
+                    {
+                        MessageBox.Show("Please select at least one view first.", "No Selection", 
+                                       MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    
+                    // Prompt for filename pattern
+                    string newFilename = PromptForFilename(
+                        "Edit Filename for Selected Views", 
+                        "Enter filename (will apply to all selected views)");
+                    
+                    if (!string.IsNullOrWhiteSpace(newFilename))
+                    {
+                        foreach (var view in selectedViews)
+                        {
+                            view.CustomFileName = newFilename;
+                        }
+                        WriteDebugLog($"Updated {selectedViews.Count} views with filename: {newFilename}");
+                        MessageBox.Show($"Updated {selectedViews.Count} view(s) filename.", "Success", 
+                                       MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error editing selected filenames: {ex.Message}");
+                MessageBox.Show($"Error editing filenames: {ex.Message}", "Error", 
+                               MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        
+        private string PromptForFilename(string title, string defaultValue)
+        {
+            // Create a simple WPF dialog
+            var dialog = new Window
+            {
+                Title = title,
+                Width = 400,
+                Height = 150,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize
+            };
+            
+            var grid = new WpfGrid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            
+            var textBox = new TextBox
+            {
+                Text = defaultValue,
+                Margin = new Thickness(10),
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 14
+            };
+            WpfGrid.SetRow(textBox, 0);
+            grid.Children.Add(textBox);
+            
+            var buttonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(10)
+            };
+            
+            var okButton = new Button
+            {
+                Content = "OK",
+                Width = 80,
+                Height = 30,
+                Margin = new Thickness(0, 0, 10, 0),
+                IsDefault = true
+            };
+            okButton.Click += (s, e) => { dialog.DialogResult = true; dialog.Close(); };
+            
+            var cancelButton = new Button
+            {
+                Content = "Cancel",
+                Width = 80,
+                Height = 30,
+                IsCancel = true
+            };
+            cancelButton.Click += (s, e) => { dialog.DialogResult = false; dialog.Close(); };
+            
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            WpfGrid.SetRow(buttonPanel, 1);
+            grid.Children.Add(buttonPanel);
+            
+            dialog.Content = grid;
+            
+            textBox.Focus();
+            textBox.SelectAll();
+            
+            return dialog.ShowDialog() == true ? textBox.Text : null;
         }
 
         private void SetAllCustomFileName_Click(object sender, RoutedEventArgs e)

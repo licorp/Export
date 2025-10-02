@@ -122,6 +122,13 @@ namespace ProSheetsAddin.Models
             get => CustomFileName;
             set => CustomFileName = value;
         }
+        
+        // Alias for Size property (for DataGrid binding compatibility)
+        public string PaperSize
+        {
+            get => Size;
+            set => Size = value;
+        }
 
         public event PropertyChangedEventHandler PropertyChanged;
 

@@ -87,6 +87,7 @@
     <Compile Include="Utils\FileNameGenerator.cs" />
     <Compile Include="Utils\NotificationHelper.cs" />
     <Compile Include="Utils\ParameterUtils.cs" />
+    <Compile Include="Utils\SheetSizeDetector.cs" />
     <Compile Include="Views\ProSheetsMainWindow.xaml.cs">
       <DependentUpon>ProSheetsMainWindow.xaml</DependentUpon>
     </Compile>
