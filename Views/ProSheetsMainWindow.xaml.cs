@@ -33,8 +33,8 @@ namespace ProSheetsAddin.Views
         private readonly Document _document;
         private readonly UIApplication _uiApp;
         private ObservableCollection<SheetItem> _sheets;
-        private ProSheetsProfileManager _profileManager;
-        private ProSheetsProfile _selectedProfile;
+        private ProfileManagerService _profileManager;
+        private Models.Profile _selectedProfile;
         private ExternalEvent _exportEvent;
         private ExportHandler _exportHandler;
 
@@ -140,22 +140,6 @@ namespace ProSheetsAddin.Views
         {
             WriteDebugLog($"Property '{propertyName}' changed - firing PropertyChanged event");
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-        // Profile Manager properties
-        public ObservableCollection<ProSheetsProfile> Profiles => _profileManager?.Profiles;
-        
-        public ProSheetsProfile SelectedProfile
-        {
-            get => _selectedProfile;
-            set
-            {
-                if (_selectedProfile != value)
-                {
-                    _selectedProfile = value;
-                    OnProfileChanged();
-                }
-            }
         }
 
         // Export settings với data binding
@@ -1175,206 +1159,20 @@ Tiếp tục xuất file?";
             UpdateExportSummary();
         }
 
-        #region Profile Manager Methods
+        #region Profile Manager Methods - MOVED TO ProSheetsMainWindow.Profiles.cs
 
-        private void InitializeProfiles()
-        {
-            WriteDebugLog("Initializing Profile Manager");
-            try
-            {
-                _profileManager = new ProSheetsProfileManager();
-                
-                // Select first profile by default
-                if (_profileManager.Profiles.Count > 0)
-                {
-                    _selectedProfile = _profileManager.Profiles[0];
-                    ApplyProfileToSettings(_selectedProfile);
-                }
-                
-                WriteDebugLog($"Profile Manager initialized with {_profileManager.Profiles.Count} profiles");
-            }
-            catch (Exception ex)
-            {
-                WriteDebugLog($"Error initializing Profile Manager: {ex.Message}");
-            }
-        }
+        // All Profile management methods have been moved to ProSheetsMainWindow.Profiles.cs
+        // This includes:
+        // - InitializeProfiles()
+        // - OnProfileChanged()
+        // - ApplyProfileToUI()
+        // - SaveCurrentSettingsToProfile()
+        // - ProfileComboBox_SelectionChanged()
+        // - AddProfile_Click()
+        // - SaveProfile_Click()
+        // - DeleteProfile_Click()
 
-        private void OnProfileChanged()
-        {
-            WriteDebugLog($"Profile changed to: {_selectedProfile?.ProfileName ?? "null"}");
-            if (_selectedProfile != null)
-            {
-                ApplyProfileToSettings(_selectedProfile);
-            }
-        }
-
-        private void ApplyProfileToSettings(ProSheetsProfile profile)
-        {
-            WriteDebugLog($"Applying profile settings: {profile.ProfileName}");
-            try
-            {
-                if (ExportSettings != null)
-                {
-                    ExportSettings.OutputFolder = profile.OutputFolder;
-                    ExportSettings.CreateSeparateFolders = profile.CreateSeparateFolders;
-                    ExportSettings.HideCropBoundaries = profile.HideCropRegions;
-                    ExportSettings.HideScopeBoxes = profile.HideScopeBoxes;
-                    
-                    // Apply format selections
-                    ExportSettings.IsPdfSelected = profile.SelectedFormats.Contains("PDF");
-                    ExportSettings.IsDwgSelected = profile.SelectedFormats.Contains("DWG");
-                    ExportSettings.IsDgnSelected = profile.SelectedFormats.Contains("DGN");
-                    ExportSettings.IsIfcSelected = profile.SelectedFormats.Contains("IFC");
-                    ExportSettings.IsImgSelected = profile.SelectedFormats.Contains("IMG");
-                    
-                    WriteDebugLog($"Profile settings applied successfully");
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteDebugLog($"Error applying profile settings: {ex.Message}");
-            }
-        }
-
-        private void ProfileComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            ComboBox combo = sender as ComboBox;
-            if (combo?.SelectedItem is ProSheetsProfile profile)
-            {
-                _selectedProfile = profile;
-                OnProfileChanged();
-                WriteDebugLog($"Profile selection changed to: {profile.ProfileName}");
-            }
-        }
-
-        private void ImportProfile_Click(object sender, RoutedEventArgs e)
-        {
-            WriteDebugLog("Import Profile clicked");
-            try
-            {
-                // Open file dialog to select JSON profile
-                var openFileDialog = new Microsoft.Win32.OpenFileDialog
-                {
-                    Title = "Import Profile from JSON",
-                    Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-                    DefaultExt = ".json"
-                };
-
-                if (openFileDialog.ShowDialog() == true)
-                {
-                    string jsonPath = openFileDialog.FileName;
-                    WriteDebugLog($"Selected JSON file: {jsonPath}");
-                    
-                    // Read and import profile
-                    var profile = _profileManager.LoadProfileFromFile(jsonPath);
-                    if (profile != null)
-                    {
-                        _profileManager.SaveProfile(profile);
-                        _selectedProfile = profile;
-                        
-                        // Refresh profile list
-                        InitializeProfiles();
-                        
-                        WriteDebugLog($"Profile imported: {profile.ProfileName}");
-                        MessageBox.Show($"Profile '{profile.ProfileName}' đã được import thành công!", 
-                                       "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteDebugLog($"Error importing profile: {ex.Message}");
-                MessageBox.Show($"Lỗi import profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void ExportProfile_Click(object sender, RoutedEventArgs e)
-        {
-            WriteDebugLog("Export Profile clicked");
-            try
-            {
-                if (_selectedProfile != null)
-                {
-                    // Update profile with current settings
-                    _selectedProfile.OutputFolder = ExportSettings.OutputFolder;
-                    _selectedProfile.CreateSeparateFolders = ExportSettings.CreateSeparateFolders;
-                    _selectedProfile.HideCropRegions = ExportSettings.HideCropBoundaries;
-                    _selectedProfile.HideScopeBoxes = ExportSettings.HideScopeBoxes;
-                    
-                    var formats = new List<string>();
-                    if (ExportSettings.IsPdfSelected) formats.Add("PDF");
-                    if (ExportSettings.IsDwgSelected) formats.Add("DWG");
-                    if (ExportSettings.IsDgnSelected) formats.Add("DGN");
-                    if (ExportSettings.IsIfcSelected) formats.Add("IFC");
-                    if (ExportSettings.IsImgSelected) formats.Add("IMG");
-                    _selectedProfile.SelectedFormats = formats;
-                    
-                    // Save to internal storage first
-                    _profileManager.SaveProfile(_selectedProfile);
-                    
-                    // Open save dialog to export to JSON file
-                    var saveFileDialog = new Microsoft.Win32.SaveFileDialog
-                    {
-                        Title = "Export Profile to JSON",
-                        Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-                        DefaultExt = ".json",
-                        FileName = _selectedProfile.ProfileName + ".json"
-                    };
-                    
-                    if (saveFileDialog.ShowDialog() == true)
-                    {
-                        string jsonPath = saveFileDialog.FileName;
-                        _profileManager.ExportProfileToFile(_selectedProfile, jsonPath);
-                        
-                        WriteDebugLog($"Profile exported to: {jsonPath}");
-                        MessageBox.Show($"Profile '{_selectedProfile.ProfileName}' đã được export thành công!", 
-                                       "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("Vui lòng chọn một profile trước!", "Thông báo", 
-                                   MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteDebugLog($"Error exporting profile: {ex.Message}");
-                MessageBox.Show($"Lỗi export profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void DeleteProfile_Click(object sender, RoutedEventArgs e)
-        {
-            WriteDebugLog("Delete Profile clicked");
-            try
-            {
-                if (_selectedProfile != null)
-                {
-                    var result = MessageBox.Show($"Bạn có chắc muốn xóa profile '{_selectedProfile.ProfileName}'?",
-                                               "Xác nhận xóa", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                    
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        _profileManager.DeleteProfile(_selectedProfile);
-                        
-                        // Select first remaining profile
-                        if (_profileManager.Profiles.Count > 0)
-                        {
-                            _selectedProfile = _profileManager.Profiles[0];
-                            ApplyProfileToSettings(_selectedProfile);
-                        }
-                        
-                        WriteDebugLog($"Profile deleted: {_selectedProfile.ProfileName}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteDebugLog($"Error deleting profile: {ex.Message}");
-                MessageBox.Show($"Lỗi xóa profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+        #endregion
 
         #region Navigation Methods
 
@@ -1424,87 +1222,6 @@ Tiếp tục xuất file?";
             catch (Exception ex)
             {
                 WriteDebugLog($"Error updating navigation buttons: {ex.Message}");
-            }
-        }
-
-        #endregion
-
-        private void ImportXMLProfile(string xmlFilePath)
-        {
-            try
-            {
-                WriteDebugLog($"Importing XML profile: {xmlFilePath}");
-                
-                // Get current sheets from document
-                var currentSheets = GetCurrentDocumentSheets();
-                
-                // Load XML profile and generate custom file names
-                var sheetInfos = _profileManager.LoadXMLProfileWithSheets(xmlFilePath, currentSheets);
-                
-                if (sheetInfos.Any())
-                {
-                    // Update the current sheets with custom file names from XML profile
-                    foreach (var sheetInfo in sheetInfos)
-                    {
-                        var existingSheet = _sheets?.FirstOrDefault(s => s.SheetNumber == sheetInfo.SheetNumber);
-                        if (existingSheet != null)
-                        {
-                            existingSheet.CustomFileName = sheetInfo.CustomFileName;
-                            existingSheet.Revision = sheetInfo.Revision;
-                            existingSheet.Size = sheetInfo.Size;
-                        }
-                    }
-                    
-                    // Also load as regular profile for format settings
-                    _profileManager.LoadProSheetsProfile(xmlFilePath);
-                    
-                    // Find and select the imported profile
-                    var fileName = Path.GetFileNameWithoutExtension(xmlFilePath);
-                    var importedProfile = _profileManager.Profiles.FirstOrDefault(p => 
-                        p.ProfileName.Contains(fileName) || fileName.Contains(p.ProfileName));
-                    
-                    if (importedProfile != null)
-                    {
-                        _selectedProfile = importedProfile;
-                        ApplyProfileToSettings(_selectedProfile);
-                    }
-                    
-                    WriteDebugLog($"XML Profile imported with {sheetInfos.Count} custom file names");
-                    MessageBox.Show($"Đã import XML profile với {sheetInfos.Count} custom file names.\nCác tên file đã được cập nhật trong bảng.", 
-                                   "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    WriteDebugLog("No sheet infos generated from XML profile");
-                    MessageBox.Show("Không thể tạo custom file names từ XML profile này.", 
-                                   "Cảnh báo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteDebugLog($"Error importing XML profile: {ex.Message}");
-                MessageBox.Show($"Lỗi import XML profile: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private List<ViewSheet> GetCurrentDocumentSheets()
-        {
-            try
-            {
-                if (_document == null) return new List<ViewSheet>();
-                
-                var collector = new FilteredElementCollector(_document)
-                    .OfClass(typeof(ViewSheet))
-                    .WhereElementIsNotElementType();
-                
-                return collector.Cast<ViewSheet>()
-                                .Where(sheet => !sheet.IsTemplate)
-                                .ToList();
-            }
-            catch (Exception ex)
-            {
-                WriteDebugLog($"Error getting current document sheets: {ex.Message}");
-                return new List<ViewSheet>();
             }
         }
 
@@ -1693,6 +1410,8 @@ Tiếp tục xuất file?";
             }
         }
 
+        // ApplyTemplate_Click temporarily disabled - requires refactoring with new Profile system
+        /*
         private void ApplyTemplate_Click(object sender, RoutedEventArgs e)
         {
             WriteDebugLog("Apply Template clicked");
@@ -1759,6 +1478,7 @@ Tiếp tục xuất file?";
                 MessageBox.Show($"Lỗi áp dụng template: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+        */
 
         #endregion
 
