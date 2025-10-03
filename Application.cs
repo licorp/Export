@@ -22,25 +22,15 @@ namespace ProSheetsAddin
             // Tạo ribbon panel
             RibbonPanel panel = application.CreateRibbonPanel(tabName, "Export Tools");
             
-            // Thêm push button cho Test Command
-            PushButtonData testButtonData = new PushButtonData(
-                "TestCommand", 
-                "Test\nExport +", 
-                Assembly.GetExecutingAssembly().Location, 
-                "ProSheetsAddin.Commands.TestCommand");
-            
-            PushButton testButton = panel.AddItem(testButtonData) as PushButton;
-            testButton.ToolTip = "Test Export + functionality with debug output";
-            
-            // Thêm push button cho Simple Export  
+            // Thêm push button cho ProSheets Export
             PushButtonData buttonData = new PushButtonData(
                 "SimpleExport", 
-                "Export +\nTool", 
+                "ProSheets\nExport", 
                 Assembly.GetExecutingAssembly().Location, 
                 "ProSheetsAddin.Commands.SimpleExportCommand");
             
             PushButton pushButton = panel.AddItem(buttonData) as PushButton;
-            pushButton.ToolTip = "Export sheets to multiple formats";
+            pushButton.ToolTip = "Export sheets to PDF, DWG, IFC and other formats with advanced settings";
             
             Debug.WriteLine("[Export +] Ribbon setup completed successfully");
             return Result.Succeeded;

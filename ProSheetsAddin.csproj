@@ -66,6 +66,7 @@
     <Compile Include="Commands\ExportHandler.cs" />
     <Compile Include="Commands\SimpleExportCommand.cs" />
     <Compile Include="Commands\TestCommand.cs" />
+    <Compile Include="Events\PDFExportEventHandler.cs" />
     <Compile Include="Models\ProSheetsModels.cs" />
     <Compile Include="Models\ProSheetsXMLProfile.cs" />
     <Compile Include="Models\Profile.cs" />
@@ -87,7 +88,9 @@
     <Compile Include="Managers\DrawingTransmittalManager.cs" />
     <Compile Include="Managers\SchedulingAssistant.cs" />
     <Compile Include="Managers\PDFExportManager.cs" />
+    <Compile Include="Managers\PDFExportManager_PrintManager.cs" />
     <Compile Include="Managers\ProSheetsProfileManager.cs" />
+    <Compile Include="Services\PDFOptionsApplier.cs" />
     <Compile Include="Models\ExportQueueItem.cs" />
     <Compile Include="Models\ParameterInfo.cs" />
     <Compile Include="Utils\BrowseFileBehavior.cs" />

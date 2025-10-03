@@ -635,7 +635,7 @@
 
                     <!-- Format Settings Details -->
                     <TabControl Grid.Row="0" Background="White" BorderThickness="1" BorderBrush="#E1E1E1">
-                        <TabItem Header="Format" IsEnabled="{Binding ExportSettings.IsPdfSelected}">
+                        <TabItem Header="PDF Settings" IsEnabled="{Binding ExportSettings.IsPdfSelected}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
                                 <Grid>
                                     <Grid.RowDefinitions>
@@ -729,18 +729,20 @@
                                         <GroupBox Header="Paper Placement" Grid.Column="0" Margin="0,0,5,0" 
                                                   BorderBrush="#E1E1E1" BorderThickness="1">
                                             <StackPanel Margin="10">
-                                                <RadioButton Content="Center" IsChecked="True" Margin="0,0,0,8" FontSize="13"/>
-                                                <RadioButton Content="Offset from corner" Margin="0,0,0,8" FontSize="13"/>
+                                                <RadioButton x:Name="CenterRadio" Content="Center" IsChecked="True" Margin="0,0,0,8" FontSize="13"/>
+                                                <RadioButton x:Name="OffsetRadio" Content="Offset from corner" Margin="0,0,0,8" FontSize="13"/>
                                                 <ComboBox x:Name="MarginCombo" Margin="20,0,0,10" FontSize="13">
                                                     <ComboBoxItem Content="No Margin" IsSelected="True"/>
-                                                    <ComboBoxItem Content="Small"/>
-                                                    <ComboBoxItem Content="Large"/>
+                                                    <ComboBoxItem Content="Printer Limit"/>
+                                                    <ComboBoxItem Content="User Defined"/>
                                                 </ComboBox>
                                                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                                     <TextBlock Text="X -" VerticalAlignment="Center" Width="25" FontSize="13"/>
-                                                    <TextBox Width="50" Height="25" Margin="2,0,10,0" VerticalContentAlignment="Center"/>
+                                                    <TextBox x:Name="OffsetXTextBox" Width="50" Height="25" Margin="2,0,10,0" 
+                                                             VerticalContentAlignment="Center" Text="0"/>
                                                     <TextBlock Text="Y -" VerticalAlignment="Center" Width="25" FontSize="13"/>
-                                                    <TextBox Width="50" Height="25" Margin="2,0,0,0" VerticalContentAlignment="Center"/>
+                                                    <TextBox x:Name="OffsetYTextBox" Width="50" Height="25" Margin="2,0,0,0" 
+                                                             VerticalContentAlignment="Center" Text="0"/>
                                                 </StackPanel>
                                             </StackPanel>
                                         </GroupBox>
@@ -760,6 +762,7 @@
                                                         <ComboBoxItem Content="Low"/>
                                                         <ComboBoxItem Content="Medium"/>
                                                         <ComboBoxItem Content="High" IsSelected="True"/>
+                                                        <ComboBoxItem Content="Presentation"/>
                                                     </ComboBox>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal">
@@ -777,14 +780,34 @@
                                         <GroupBox Header="Options" Grid.Column="2" Margin="5,0,0,0" 
                                                   BorderBrush="#E1E1E1" BorderThickness="1">
                                             <StackPanel Margin="10">
-                                                <CheckBox Content="View links in blue (Color prints only)" Margin="0,0,0,5" FontSize="13"/>
-                                                <CheckBox Content="Hide ref/work planes" IsChecked="True" Margin="0,0,0,5" FontSize="13"/>
-                                                <CheckBox Content="Hide unreferenced view tags" IsChecked="True" Margin="0,0,0,5" FontSize="13"/>
-                                                <CheckBox Content="Hide scope boxes" IsChecked="True" Margin="0,0,0,5" FontSize="13"/>
-                                                <CheckBox Content="Hide crop boundaries" IsChecked="{Binding ExportSettings.HideCropBoundaries}" 
+                                                <CheckBox Content="View links in blue (Color prints only)" 
+                                                          IsChecked="{Binding ExportSettings.ViewLinksInBlue}" 
+                                                          Checked="OptionCheckBox_Changed" Unchecked="OptionCheckBox_Changed"
                                                           Margin="0,0,0,5" FontSize="13"/>
-                                                <CheckBox Content="Replace halftone with thin lines" Margin="0,0,0,5" FontSize="13"/>
-                                                <CheckBox Content="Region edges mask coincident lines" IsChecked="True" FontSize="13"/>
+                                                <CheckBox Content="Hide ref/work planes" 
+                                                          IsChecked="{Binding ExportSettings.HideRefWorkPlanes}" 
+                                                          Checked="OptionCheckBox_Changed" Unchecked="OptionCheckBox_Changed"
+                                                          Margin="0,0,0,5" FontSize="13"/>
+                                                <CheckBox Content="Hide unreferenced view tags" 
+                                                          IsChecked="{Binding ExportSettings.HideUnreferencedViewTags}" 
+                                                          Checked="OptionCheckBox_Changed" Unchecked="OptionCheckBox_Changed"
+                                                          Margin="0,0,0,5" FontSize="13"/>
+                                                <CheckBox Content="Hide scope boxes" 
+                                                          IsChecked="{Binding ExportSettings.HideScopeBoxes}" 
+                                                          Checked="OptionCheckBox_Changed" Unchecked="OptionCheckBox_Changed"
+                                                          Margin="0,0,0,5" FontSize="13"/>
+                                                <CheckBox Content="Hide crop boundaries" 
+                                                          IsChecked="{Binding ExportSettings.HideCropBoundaries}" 
+                                                          Checked="OptionCheckBox_Changed" Unchecked="OptionCheckBox_Changed"
+                                                          Margin="0,0,0,5" FontSize="13"/>
+                                                <CheckBox Content="Replace halftone with thin lines" 
+                                                          IsChecked="{Binding ExportSettings.ReplaceHalftone}" 
+                                                          Checked="OptionCheckBox_Changed" Unchecked="OptionCheckBox_Changed"
+                                                          Margin="0,0,0,5" FontSize="13"/>
+                                                <CheckBox Content="Region edges mask coincident lines" 
+                                                          IsChecked="{Binding ExportSettings.RegionEdgesMask}" 
+                                                          Checked="OptionCheckBox_Changed" Unchecked="OptionCheckBox_Changed"
+                                                          FontSize="13"/>
                                             </StackPanel>
                                         </GroupBox>
                                     </Grid>
@@ -829,8 +852,8 @@
                                         <GroupBox Header="File" Grid.Column="2" Margin="5,0,0,0" 
                                                   BorderBrush="#E1E1E1" BorderThickness="1">
                                             <StackPanel Margin="10">
-                                                <RadioButton Content="Create separate files" IsChecked="True" Margin="0,0,0,5" FontSize="13"/>
-                                                <RadioButton Content="Combine multiple views/sheets into a single file" 
+                                                <RadioButton x:Name="SeparateFilesRadio" Content="Create separate files" IsChecked="True" Margin="0,0,0,5" FontSize="13"/>
+                                                <RadioButton x:Name="CombineFilesRadio" Content="Combine multiple views/sheets into a single file" 
                                                              Margin="0,0,0,10" FontSize="13"/>
                                                 
                                                 <CheckBox x:Name="KeepPaperSizeCheckBox" Content="Keep Paper Size &amp; Orientation" 
@@ -1474,7 +1497,15 @@
                                     <!-- Checkbox Column -->
                                     <DataGridCheckBoxColumn Header="✓" 
                                                            Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" 
-                                                           Width="35"/>
+                                                           Width="35">
+                                        <DataGridCheckBoxColumn.ElementStyle>
+                                            <Style TargetType="CheckBox">
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="Margin" Value="0"/>
+                                            </Style>
+                                        </DataGridCheckBoxColumn.ElementStyle>
+                                    </DataGridCheckBoxColumn>
                                     
                                     <!-- View/Sheet Number -->
                                     <DataGridTextColumn Header="View/Sheet Number" 

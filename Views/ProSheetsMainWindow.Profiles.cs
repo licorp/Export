@@ -346,5 +346,35 @@ namespace ProSheetsAddin.Views
                                MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        #region Options CheckBox Event Handlers
+
+        /// <summary>
+        /// Event handler for all Options checkboxes to log and track changes
+        /// </summary>
+        private void OptionCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.CheckBox checkBox)
+            {
+                bool isChecked = checkBox.IsChecked == true;
+                string optionName = checkBox.Content.ToString();
+                
+                WriteDebugLog($"[OPTIONS] '{optionName}' changed to: {(isChecked ? "CHECKED ✓" : "UNCHECKED ✗")}");
+                
+                // Log current state of all options
+                if (ExportSettings != null)
+                {
+                    WriteDebugLog($"[OPTIONS STATE] ViewLinksInBlue: {ExportSettings.ViewLinksInBlue}, " +
+                                $"HideRefWorkPlanes: {ExportSettings.HideRefWorkPlanes}, " +
+                                $"HideUnreferencedViewTags: {ExportSettings.HideUnreferencedViewTags}, " +
+                                $"HideScopeBoxes: {ExportSettings.HideScopeBoxes}, " +
+                                $"HideCropBoundaries: {ExportSettings.HideCropBoundaries}, " +
+                                $"ReplaceHalftone: {ExportSettings.ReplaceHalftone}, " +
+                                $"RegionEdgesMask: {ExportSettings.RegionEdgesMask}");
+                }
+            }
+        }
+
+        #endregion Options CheckBox Event Handlers
     }
 }

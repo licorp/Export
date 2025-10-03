@@ -264,8 +264,12 @@ namespace ProSheetsAddin.Models
         private bool _includeRevision = true;
         private bool _createSeparateFolders = false;
         private PSPaperPlacement _paperPlacement = PSPaperPlacement.Center;
+        private PSPaperMargin _paperMargin = PSPaperMargin.NoMargin;
+        private double _offsetX = 0.0;
+        private double _offsetY = 0.0;
         private PSHiddenLineViews _hiddenLineViews = PSHiddenLineViews.VectorProcessing;
         private bool _viewLinks = false;
+        private bool _viewLinksInBlue = false;
         private bool _hideRefWorkPlanes = true;
         private bool _hideUnreferencedViewTags = true;
         private bool _hideScopeBoxes = true;
@@ -314,13 +318,6 @@ namespace ProSheetsAddin.Models
             set { _createSeparateFolders = value; OnPropertyChanged(); }
         }
 
-        // Paper Placement Settings
-        public PSPaperPlacement PaperPlacement
-        {
-            get => _paperPlacement;
-            set { _paperPlacement = value; OnPropertyChanged(); }
-        }
-
         // Hidden Line Views Settings  
         public PSHiddenLineViews HiddenLineViews
         {
@@ -332,6 +329,12 @@ namespace ProSheetsAddin.Models
         {
             get => _viewLinks;
             set { _viewLinks = value; OnPropertyChanged(); }
+        }
+
+        public bool ViewLinksInBlue
+        {
+            get => _viewLinksInBlue;
+            set { _viewLinksInBlue = value; OnPropertyChanged(); }
         }
 
         public bool HideRefWorkPlanes
@@ -393,6 +396,31 @@ namespace ProSheetsAddin.Models
         {
             get => _keepPaperSize;
             set { _keepPaperSize = value; OnPropertyChanged(); }
+        }
+
+        // Paper Placement Settings
+        public PSPaperPlacement PaperPlacement
+        {
+            get => _paperPlacement;
+            set { _paperPlacement = value; OnPropertyChanged(); }
+        }
+
+        public PSPaperMargin PaperMargin
+        {
+            get => _paperMargin;
+            set { _paperMargin = value; OnPropertyChanged(); }
+        }
+
+        public double OffsetX
+        {
+            get => _offsetX;
+            set { _offsetX = value; OnPropertyChanged(); }
+        }
+
+        public double OffsetY
+        {
+            get => _offsetY;
+            set { _offsetY = value; OnPropertyChanged(); }
         }
 
         // Selected formats tracking with binding support
@@ -511,6 +539,13 @@ namespace ProSheetsAddin.Models
     {
         Center,
         OffsetFromCorner
+    }
+
+    public enum PSPaperMargin
+    {
+        NoMargin,
+        PrinterLimit,
+        UserDefined
     }
 
     public enum PSHiddenLineViews

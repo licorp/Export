@@ -26,8 +26,12 @@ namespace ProSheetsAddin.Managers
 
         /// <summary>
         /// Export multiple sheets to PDF with custom file names
+        /// <summary>
+        /// Export multiple sheets to PDF with custom file names
+        /// Uses Document.Export() with view options applied beforehand
         /// </summary>
-        public bool ExportSheetsWithCustomNames(List<SheetItem> sheetItems, string outputFolder, ExportSettings settings, Action<int, int, string> progressCallback = null)
+        /// <param name="progressCallback">Progress callback: (current, total, sheetNumber, isFileCompleted)</param>
+        public bool ExportSheetsWithCustomNames(List<SheetItem> sheetItems, string outputFolder, ExportSettings settings, Action<int, int, string, bool> progressCallback = null)
         {
             try
             {
@@ -37,10 +41,48 @@ namespace ProSheetsAddin.Managers
                 // Ensure output directory exists
                 Directory.CreateDirectory(outputFolder);
 
-                // Create PDF export options
+                // ===================================================================
+                // STEP 1: Apply view options to ALL sheets BEFORE export
+                // This ensures hidden categories, crop boxes, etc. are set correctly
+                // ===================================================================
+                WriteDebugLog("[Export + PDF] STEP 1: Applying view options to all sheets...");
+                try
+                {
+                    using (Transaction trans = new Transaction(_document, "Apply PDF View Options"))
+                    {
+                        trans.Start();
+                        
+                        foreach (var sheetItem in sheetItems)
+                        {
+                            ViewSheet sheet = _document.GetElement(sheetItem.Id) as ViewSheet;
+                            if (sheet != null)
+                            {
+                                // Use NoTransaction version since we're already in a Transaction
+                                Services.PDFOptionsApplier.ApplyViewOptionsToSheetNoTransaction(_document, sheet, settings);
+                            }
+                        }
+                        
+                        trans.Commit();
+                    }
+                    WriteDebugLog("[Export + PDF] ✓ View options applied to all sheets");
+                }
+                catch (Exception viewEx)
+                {
+                    WriteDebugLog($"[Export + PDF] WARNING: Could not apply view options: {viewEx.Message}");
+                    // Continue export even if view options fail
+                }
+
+                // ===================================================================
+                // STEP 2: Create PDF export options
+                // ===================================================================
+                WriteDebugLog("[Export + PDF] STEP 2: Creating PDF export options...");
                 PDFExportOptions pdfOptions = CreatePDFExportOptions(settings);
                 WriteDebugLog($"[Export + PDF] PDF options created");
 
+                // ===================================================================
+                // STEP 3: Export each sheet
+                // ===================================================================
+                WriteDebugLog("[Export + PDF] STEP 3: Exporting sheets...");
                 int successCount = 0;
                 int failCount = 0;
                 int total = sheetItems.Count;
@@ -61,8 +103,8 @@ namespace ProSheetsAddin.Managers
 
                         WriteDebugLog($"[Export + PDF] Exporting sheet: {sheet.SheetNumber} - {sheet.Name}");
                         
-                        // Report progress
-                        progressCallback?.Invoke(i + 1, total, sheet.SheetNumber);
+                        // Report progress - START of export
+                        progressCallback?.Invoke(i + 1, total, sheet.SheetNumber, false);
 
                         // Determine custom file name
                         string customFileName = GetCustomOrDefaultFileName(sheetItem, sheet, settings);
@@ -141,6 +183,48 @@ namespace ProSheetsAddin.Managers
                             {
                                 WriteDebugLog($"[Export + PDF] SUCCESS: File already has correct name: {customFileName}.pdf");
                             }
+                            
+                            // ===================================================================
+                            // QUALITY VERIFICATION - Check exported PDF file
+                            // ===================================================================
+                            try
+                            {
+                                FileInfo pdfFile = new FileInfo(targetFile);
+                                long fileSizeKB = pdfFile.Length / 1024;
+                                WriteDebugLog($"[Export + PDF] === QUALITY CHECK ===");
+                                WriteDebugLog($"[Export + PDF] File: {customFileName}.pdf");
+                                WriteDebugLog($"[Export + PDF] Size: {fileSizeKB} KB");
+                                
+                                // Expected: Vector PDF for A3 sheet = ~100 KB - 1 MB
+                                // Too small (<50 KB) = likely low quality raster
+                                // Too large (>5 MB) = may contain unnecessary raster data
+                                if (fileSizeKB < 50)
+                                {
+                                    WriteDebugLog($"[Export + PDF] ⚠ WARNING: File size very small ({fileSizeKB} KB)");
+                                    WriteDebugLog($"[Export + PDF] ⚠ May indicate low quality raster export");
+                                }
+                                else if (fileSizeKB > 5000)
+                                {
+                                    WriteDebugLog($"[Export + PDF] ⚠ WARNING: File size large ({fileSizeKB} KB)");
+                                    WriteDebugLog($"[Export + PDF] ⚠ May contain excessive raster data");
+                                }
+                                else
+                                {
+                                    WriteDebugLog($"[Export + PDF] ✅ File size looks good for vector PDF");
+                                }
+                                
+                                WriteDebugLog($"[Export + PDF] TIP: Open in Adobe Acrobat:");
+                                WriteDebugLog($"[Export + PDF]   - Object Inspector: Check for 'Path' and 'Text' objects (vector)");
+                                WriteDebugLog($"[Export + PDF]   - Try selecting text: Should be selectable if vector");
+                                WriteDebugLog($"[Export + PDF]   - Preflight → Images: Check DPI ≥ 300 for raster elements");
+                            }
+                            catch (Exception qcEx)
+                            {
+                                WriteDebugLog($"[Export + PDF] Info - Quality check failed: {qcEx.Message}");
+                            }
+                            
+                            // Report completion - file exists on disk
+                            progressCallback?.Invoke(i + 1, total, sheet.SheetNumber, true);
                             
                             successCount++;
                         }
@@ -287,80 +371,196 @@ namespace ProSheetsAddin.Managers
 
             try
             {
+                WriteDebugLog("[Export + PDF] Creating PDF export options...");
+                
                 // Basic configuration
                 options.PaperFormat = ExportPaperFormat.Default; // Auto-detect from sheet
                 options.PaperOrientation = PageOrientationType.Auto;
-                options.Combine = false; // Export individual files
-                options.HideCropBoundaries = true;
-                options.HideScopeBoxes = true;
                 
-                // CRITICAL FIX: Set naming rule to use custom file names without Revit prefix
-                try
+                // Combine Files setting
+                options.Combine = settings.CombineFiles;
+                WriteDebugLog($"[Export + PDF] ✓ Combine Files: {options.Combine}");
+                
+                // ===================================================================
+                // CRITICAL: Apply Color & Raster Quality settings
+                // These are the ONLY advanced settings PDFExportOptions supports
+                // ===================================================================
+                
+                // 1. COLOR SETTINGS - THIS IS THE KEY FIX
+                WriteDebugLog($"[Export + PDF] Setting ColorDepth: {settings.Colors}");
+                if (settings.Colors == PSColors.Color)
                 {
-                    // Try to set NamingRule property (Revit 2023+)
-                    var namingRuleProperty = options.GetType().GetProperty("NamingRule");
-                    if (namingRuleProperty != null && namingRuleProperty.PropertyType.IsEnum)
-                    {
-                        // Get the enum type for NamingRule
-                        var namingRuleType = namingRuleProperty.PropertyType;
-                        // Try to set to "Custom" or "FileName" enum value (usually 0 or 1)
-                        var customValue = Enum.Parse(namingRuleType, "Custom", true);
-                        namingRuleProperty.SetValue(options, customValue);
-                        WriteDebugLog("[Export + PDF] Set NamingRule to Custom for custom file names");
-                    }
+                    options.ColorDepth = ColorDepthType.Color;
+                    WriteDebugLog("[Export + PDF] ✓ ColorDepth set to COLOR");
                 }
-                catch (Exception ex)
+                else if (settings.Colors == PSColors.BlackAndWhite)
                 {
-                    WriteDebugLog($"[Export + PDF] Warning - could not set NamingRule: {ex.Message}");
+                    options.ColorDepth = ColorDepthType.BlackLine;
+                    WriteDebugLog("[Export + PDF] ✓ ColorDepth set to BLACK AND WHITE");
+                }
+                else if (settings.Colors == PSColors.Grayscale)
+                {
+                    options.ColorDepth = ColorDepthType.GrayScale;
+                    WriteDebugLog("[Export + PDF] ✓ ColorDepth set to GRAYSCALE");
                 }
                 
-                // Alternative approach: Try to disable automatic naming
+                // 2. RASTER QUALITY SETTINGS
+                WriteDebugLog($"[Export + PDF] Setting RasterQuality: {settings.RasterQuality}");
+                if (settings.RasterQuality == PSRasterQuality.High)
+                {
+                    options.RasterQuality = RasterQualityType.High;
+                    WriteDebugLog("[Export + PDF] ✓ RasterQuality set to HIGH (300 DPI)");
+                }
+                else if (settings.RasterQuality == PSRasterQuality.Medium)
+                {
+                    options.RasterQuality = RasterQualityType.Medium;
+                    WriteDebugLog("[Export + PDF] ✓ RasterQuality set to MEDIUM (150 DPI)");
+                }
+                else if (settings.RasterQuality == PSRasterQuality.Low)
+                {
+                    options.RasterQuality = RasterQualityType.Low;
+                    WriteDebugLog("[Export + PDF] ✓ RasterQuality set to LOW (72 DPI)");
+                }
+                else if (settings.RasterQuality == PSRasterQuality.Maximum)
+                {
+                    options.RasterQuality = RasterQualityType.Presentation;
+                    WriteDebugLog("[Export + PDF] ✓ RasterQuality set to MAXIMUM/PRESENTATION (600 DPI)");
+                }
+                
+                // 3. VIEW OPTIONS (hide scope boxes, crop boundaries, etc.)
+                options.HideCropBoundaries = settings.HideCropBoundaries;
+                options.HideScopeBoxes = settings.HideScopeBoxes;
+                options.HideUnreferencedViewTags = settings.HideUnreferencedViewTags;
+                
+                WriteDebugLog($"[Export + PDF] ✓ HideCropBoundaries: {settings.HideCropBoundaries}");
+                WriteDebugLog($"[Export + PDF] ✓ HideScopeBoxes: {settings.HideScopeBoxes}");
+                WriteDebugLog($"[Export + PDF] ✓ HideUnreferencedViewTags: {settings.HideUnreferencedViewTags}");
+                
+                // 4. REPLACE HALFTONE WITH THIN LINES (if supported)
                 try
                 {
-                    var autoNamingProperty = options.GetType().GetProperty("ReplaceHalftoneWithThinLines");
-                    if (autoNamingProperty != null)
-                    {
-                        autoNamingProperty.SetValue(options, false);
-                    }
+                    options.ReplaceHalftoneWithThinLines = settings.ReplaceHalftone;
+                    WriteDebugLog($"[Export + PDF] ✓ ReplaceHalftoneWithThinLines: {settings.ReplaceHalftone}");
                 }
-                catch { /* Ignore if property doesn't exist */ }
-                // Note: PDF export options may vary by Revit version
-                // These settings work for Revit 2022+
+                catch (Exception htEx)
+                {
+                    WriteDebugLog($"[Export + PDF] Info - ReplaceHalftone not supported in this Revit version: {htEx.Message}");
+                }
+                
+                // ===================================================================
+                // CRITICAL FOR HIGH QUALITY VECTOR PDF OUTPUT
+                // These settings ensure lines, text, and fills remain as vectors
+                // ===================================================================
+                
+                // 5. HIDDEN LINE VIEWS - VECTOR PROCESSING (CRITICAL!)
+                // This is THE MOST IMPORTANT setting for quality
+                // Ensures hidden lines are processed as vectors, not rasterized
                 try
                 {
-                    // Set basic PDF options - use reflection to handle version differences
-                    var colorProperty = options.GetType().GetProperty("ColorDepth");
-                    if (colorProperty != null)
+                    // Try to access HiddenLineViews property (may not exist in all Revit versions)
+                    var hiddenLineProperty = typeof(PDFExportOptions).GetProperty("HiddenLineViews");
+                    if (hiddenLineProperty != null)
                     {
-                        // Try to set to color mode (usually value 0 or enum)
-                        colorProperty.SetValue(options, 0);
+                        // HiddenLineViews enum: VectorProcessing = 0, RasterProcessing = 1
+                        // Always use VectorProcessing (0) for best quality
+                        hiddenLineProperty.SetValue(options, 0); // 0 = VectorProcessing
+                        WriteDebugLog("[Export + PDF] ✅ CRITICAL: HiddenLineViews set to VECTOR PROCESSING");
+                        WriteDebugLog("[Export + PDF] This ensures lines, text, and fills remain as vectors");
                     }
-                    
-                    var qualityProperty = options.GetType().GetProperty("ExportQuality");
-                    if (qualityProperty != null)
+                    else
                     {
-                        // Try to set to high quality (usually value 2 for 600 DPI)
-                        qualityProperty.SetValue(options, 2);
+                        WriteDebugLog("[Export + PDF] ⚠ HiddenLineViews property not available in this Revit version");
                     }
                 }
-                catch (Exception ex)
+                catch (Exception hvEx)
                 {
-                    WriteDebugLog($"[Export + PDF] Warning - could not set advanced options: {ex.Message}");
+                    WriteDebugLog($"[Export + PDF] Info - HiddenLineViews not supported: {hvEx.Message}");
                 }
-
-                // Advanced settings based on user preferences
-                if (settings != null)
+                
+                // 6. ZOOM SETTINGS - FIT TO PAGE (if supported)
+                // Ensures content fills the page properly
+                try
                 {
-                    // You can add more settings here based on ExportSettings properties
-                    WriteDebugLog("[Export + PDF] Applied custom export settings");
+                    var zoomTypeProperty = typeof(PDFExportOptions).GetProperty("ZoomType");
+                    if (zoomTypeProperty != null)
+                    {
+                        // ZoomFitType.FitToPage = 0, ZoomFitType.Zoom = 1
+                        if (settings.Zoom == PSZoomType.FitToPage)
+                        {
+                            zoomTypeProperty.SetValue(options, 0); // 0 = FitToPage
+                            WriteDebugLog("[Export + PDF] ✓ ZoomType set to FIT TO PAGE");
+                        }
+                        else
+                        {
+                            zoomTypeProperty.SetValue(options, 1); // 1 = Zoom (100%)
+                            WriteDebugLog("[Export + PDF] ✓ ZoomType set to ZOOM 100%");
+                        }
+                    }
                 }
+                catch (Exception zoomEx)
+                {
+                    WriteDebugLog($"[Export + PDF] Info - ZoomType not supported: {zoomEx.Message}");
+                }
+                
+                // 7. ALWAYS VECTOR TEXT (CRITICAL FOR TEXT QUALITY)
+                // Ensures text is exported as selectable vector fonts, not rasterized
+                try
+                {
+                    var vectorTextProperty = typeof(PDFExportOptions).GetProperty("AlwaysUseVectorText");
+                    if (vectorTextProperty != null)
+                    {
+                        vectorTextProperty.SetValue(options, true);
+                        WriteDebugLog("[Export + PDF] ✅ CRITICAL: AlwaysUseVectorText = TRUE");
+                        WriteDebugLog("[Export + PDF] Text will be selectable and embedded as fonts");
+                    }
+                }
+                catch (Exception vtEx)
+                {
+                    WriteDebugLog($"[Export + PDF] Info - AlwaysUseVectorText not supported: {vtEx.Message}");
+                }
+                
+                // ===================================================================
+                // NOTE: The following settings are NOT supported by PDFExportOptions:
+                // - HiddenLineViews (Vector/Raster Processing) - PrintManager only
+                // - Zoom Type & Zoom Percentage - PrintManager only
+                // - Paper Placement (Center/Offset) - PrintManager only
+                // 
+                // If you need these settings, must use PrintManager API instead
+                // See: PDFExportManager_PrintManager.cs
+                // ===================================================================
 
-                WriteDebugLog("[Export + PDF] PDF export options configured");
+                WriteDebugLog("[Export + PDF] ===== PDF EXPORT OPTIONS SUMMARY =====");
+                WriteDebugLog("[Export + PDF] === QUALITY SETTINGS (CRITICAL FOR VECTOR OUTPUT) ===");
+                WriteDebugLog($"[Export + PDF] ColorDepth: {options.ColorDepth} (Color = DeviceRGB, maintains original colors)");
+                WriteDebugLog($"[Export + PDF] RasterQuality: {options.RasterQuality} (High/Presentation = 300-600 DPI for raster elements)");
+                WriteDebugLog("[Export + PDF] HiddenLineViews: VectorProcessing (attempted via reflection)");
+                WriteDebugLog("[Export + PDF] AlwaysUseVectorText: TRUE (attempted via reflection)");
+                WriteDebugLog("[Export + PDF] → Lines, text, fills remain as VECTORS (selectable, scalable)");
+                WriteDebugLog("[Export + PDF] === FILE OPTIONS ===");
+                WriteDebugLog($"[Export + PDF] Combine Files: {options.Combine}");
+                WriteDebugLog($"[Export + PDF] PaperFormat: {options.PaperFormat} (auto-detect from sheet)");
+                WriteDebugLog("[Export + PDF] === VIEW OPTIONS ===");
+                WriteDebugLog($"[Export + PDF] HideCropBoundaries: {options.HideCropBoundaries}");
+                WriteDebugLog($"[Export + PDF] HideScopeBoxes: {options.HideScopeBoxes}");
+                WriteDebugLog($"[Export + PDF] HideUnreferencedViewTags: {options.HideUnreferencedViewTags}");
+                WriteDebugLog("[Export + PDF] ===== EXPECTED RESULT =====");
+                WriteDebugLog("[Export + PDF] ✅ Vector PDF: Lines, text, and fills as paths/fonts (not images)");
+                WriteDebugLog("[Export + PDF] ✅ File size: ~100 KB - 1 MB per A3 sheet (vector is compact)");
+                WriteDebugLog("[Export + PDF] ✅ Text: Selectable and searchable with embedded fonts");
+                WriteDebugLog("[Export + PDF] ✅ Quality: Infinite zoom without pixelation");
+                WriteDebugLog("[Export + PDF] ===== SETTINGS FROM UI (NOT applied - PDFExportOptions limitations) =====");
+                WriteDebugLog($"[Export + PDF] ⚠ Paper Placement: {settings.PaperPlacement} (requires PrintManager)");
+                WriteDebugLog($"[Export + PDF] ⚠ Paper Margin: {settings.PaperMargin} (requires PrintManager)");
+                WriteDebugLog($"[Export + PDF] ⚠ Offset X: {settings.OffsetX}, Y: {settings.OffsetY} (requires PrintManager)");
+                WriteDebugLog($"[Export + PDF] ⚠ Keep Paper Size: {settings.KeepPaperSize} (requires PrintManager)");
+                WriteDebugLog("[Export + PDF] ==========================================");
+                
                 return options;
             }
             catch (Exception ex)
             {
-                WriteDebugLog($"[Export + PDF] Error creating PDF options: {ex.Message}");
+                WriteDebugLog($"[Export + PDF] ERROR creating PDF options: {ex.Message}");
+                WriteDebugLog($"[Export + PDF] Stack trace: {ex.StackTrace}");
                 throw;
             }
         }

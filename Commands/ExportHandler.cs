@@ -18,7 +18,7 @@ namespace ProSheetsAddin.Commands
         public List<string> Formats { get; set; }
         public string OutputFolder { get; set; }
         public ExportSettings ExportSettings { get; set; }
-        public Action<int, int, string> ProgressCallback { get; set; }
+        public Action<int, int, string, bool> ProgressCallback { get; set; }
         public Action<bool, string> CompletionCallback { get; set; }
 
         public void Execute(UIApplication app)

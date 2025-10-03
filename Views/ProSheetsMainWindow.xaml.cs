@@ -37,6 +37,10 @@ namespace ProSheetsAddin.Views
         private Models.Profile _selectedProfile;
         private ExternalEvent _exportEvent;
         private ExportHandler _exportHandler;
+        
+        // PDF Export External Event
+        private ExternalEvent _pdfExportEvent;
+        private Events.PDFExportEventHandler _pdfExportHandler;
 
         // Enhanced properties for data binding
         public int SelectedSheetsCount 
@@ -176,6 +180,11 @@ namespace ProSheetsAddin.Views
                 _exportHandler = new ExportHandler();
                 _exportEvent = ExternalEvent.Create(_exportHandler);
                 WriteDebugLog("ExternalEvent initialized for export operations");
+                
+                // Initialize PDF Export External Event
+                _pdfExportHandler = new Events.PDFExportEventHandler();
+                _pdfExportEvent = ExternalEvent.Create(_pdfExportHandler);
+                WriteDebugLog("PDF Export ExternalEvent initialized");
             }
             
             // Initialize export settings with data binding
@@ -211,6 +220,169 @@ namespace ProSheetsAddin.Views
             UpdateNavigationButtons();
             
             WriteDebugLog("===== EXPORT + CONSTRUCTOR COMPLETED SUCCESSFULLY =====");
+        }
+
+        /// <summary>
+        /// Update ExportSettings from UI controls before export
+        /// This ensures UI selections are properly synchronized with settings object
+        /// </summary>
+        private void UpdateExportSettingsFromUI()
+        {
+            try
+            {
+                WriteDebugLog("Updating ExportSettings from UI controls...");
+                
+                // Update Raster Quality from ComboBox
+                if (RasterQualityCombo.SelectedItem is ComboBoxItem rasterItem)
+                {
+                    string rasterText = rasterItem.Content?.ToString() ?? "High";
+                    WriteDebugLog($"UI Raster Quality: {rasterText}");
+                    
+                    switch (rasterText)
+                    {
+                        case "Low":
+                            ExportSettings.RasterQuality = PSRasterQuality.Low;
+                            WriteDebugLog("✓ RasterQuality set to LOW (72 DPI)");
+                            break;
+                        case "Medium":
+                            ExportSettings.RasterQuality = PSRasterQuality.Medium;
+                            WriteDebugLog("✓ RasterQuality set to MEDIUM (150 DPI)");
+                            break;
+                        case "High":
+                            ExportSettings.RasterQuality = PSRasterQuality.High;
+                            WriteDebugLog("✓ RasterQuality set to HIGH (300 DPI)");
+                            break;
+                        case "Presentation":
+                            ExportSettings.RasterQuality = PSRasterQuality.Maximum;
+                            WriteDebugLog("✓ RasterQuality set to PRESENTATION/MAXIMUM (600 DPI)");
+                            break;
+                        default:
+                            ExportSettings.RasterQuality = PSRasterQuality.High;
+                            WriteDebugLog("⚠ Unknown raster quality, defaulting to HIGH");
+                            break;
+                    }
+                }
+                
+                // Update Colors from ComboBox
+                if (ColorsCombo.SelectedItem is ComboBoxItem colorItem)
+                {
+                    string colorText = colorItem.Content?.ToString() ?? "Color";
+                    WriteDebugLog($"UI Colors: {colorText}");
+                    
+                    switch (colorText)
+                    {
+                        case "Color":
+                            ExportSettings.Colors = PSColors.Color;
+                            WriteDebugLog("✓ Colors set to COLOR");
+                            break;
+                        case "Black and White":
+                        case "Black and white":
+                            ExportSettings.Colors = PSColors.BlackAndWhite;
+                            WriteDebugLog("✓ Colors set to BLACK AND WHITE");
+                            break;
+                        case "Grayscale":
+                            ExportSettings.Colors = PSColors.Grayscale;
+                            WriteDebugLog("✓ Colors set to GRAYSCALE");
+                            break;
+                        default:
+                            ExportSettings.Colors = PSColors.Color;
+                            WriteDebugLog("⚠ Unknown color mode, defaulting to COLOR");
+                            break;
+                    }
+                }
+                
+                // Update Output Folder
+                if (!string.IsNullOrEmpty(CreateFolderPathTextBox?.Text))
+                {
+                    ExportSettings.OutputFolder = CreateFolderPathTextBox.Text;
+                    WriteDebugLog($"✓ Output folder: {ExportSettings.OutputFolder}");
+                }
+                
+                // Update Paper Placement settings
+                if (CenterRadio?.IsChecked == true)
+                {
+                    ExportSettings.PaperPlacement = PSPaperPlacement.Center;
+                    WriteDebugLog("✓ Paper Placement: CENTER");
+                }
+                else if (OffsetRadio?.IsChecked == true)
+                {
+                    ExportSettings.PaperPlacement = PSPaperPlacement.OffsetFromCorner;
+                    WriteDebugLog("✓ Paper Placement: OFFSET FROM CORNER");
+                }
+                
+                // Update Paper Margin
+                if (MarginCombo.SelectedItem is ComboBoxItem marginItem)
+                {
+                    string marginText = marginItem.Content?.ToString() ?? "No Margin";
+                    WriteDebugLog($"UI Margin: {marginText}");
+                    
+                    switch (marginText)
+                    {
+                        case "No Margin":
+                            ExportSettings.PaperMargin = PSPaperMargin.NoMargin;
+                            WriteDebugLog("✓ Paper Margin: NO MARGIN");
+                            break;
+                        case "Printer Limit":
+                            ExportSettings.PaperMargin = PSPaperMargin.PrinterLimit;
+                            WriteDebugLog("✓ Paper Margin: PRINTER LIMIT");
+                            break;
+                        case "User Defined":
+                            ExportSettings.PaperMargin = PSPaperMargin.UserDefined;
+                            WriteDebugLog("✓ Paper Margin: USER DEFINED");
+                            break;
+                        default:
+                            ExportSettings.PaperMargin = PSPaperMargin.NoMargin;
+                            WriteDebugLog("⚠ Unknown margin type, defaulting to NO MARGIN");
+                            break;
+                    }
+                }
+                
+                // Update Offset X and Y values
+                if (double.TryParse(OffsetXTextBox?.Text, out double offsetX))
+                {
+                    ExportSettings.OffsetX = offsetX;
+                    WriteDebugLog($"✓ Offset X: {offsetX}");
+                }
+                
+                if (double.TryParse(OffsetYTextBox?.Text, out double offsetY))
+                {
+                    ExportSettings.OffsetY = offsetY;
+                    WriteDebugLog($"✓ Offset Y: {offsetY}");
+                }
+                
+                // Update Combine Files setting
+                if (CombineFilesRadio?.IsChecked == true)
+                {
+                    ExportSettings.CombineFiles = true;
+                    WriteDebugLog("✓ File Mode: COMBINE multiple sheets into single file");
+                }
+                else if (SeparateFilesRadio?.IsChecked == true)
+                {
+                    ExportSettings.CombineFiles = false;
+                    WriteDebugLog("✓ File Mode: CREATE SEPARATE files");
+                }
+                
+                // Update Keep Paper Size & Orientation setting
+                if (KeepPaperSizeCheckBox?.IsChecked == true)
+                {
+                    ExportSettings.KeepPaperSize = true;
+                    WriteDebugLog("✓ Keep Paper Size & Orientation: ENABLED");
+                }
+                else
+                {
+                    ExportSettings.KeepPaperSize = false;
+                    WriteDebugLog("✓ Keep Paper Size & Orientation: DISABLED");
+                }
+                
+                WriteDebugLog("===== ExportSettings Updated Successfully =====");
+                WriteDebugLog($"Final Settings: RasterQuality={ExportSettings.RasterQuality}, Colors={ExportSettings.Colors}");
+                WriteDebugLog($"Paper Placement: {ExportSettings.PaperPlacement}, Margin: {ExportSettings.PaperMargin}, Offset: ({ExportSettings.OffsetX}, {ExportSettings.OffsetY})");
+                WriteDebugLog($"Combine Files: {ExportSettings.CombineFiles}, Keep Paper Size: {ExportSettings.KeepPaperSize}");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR updating ExportSettings from UI: {ex.Message}");
+            }
         }
 
         private void ConfigureNonModalWindow()
@@ -1867,49 +2039,88 @@ Tiếp tục xuất file?";
                         
                         if (format.ToUpper() == "PDF")
                         {
-                            // Use PDFExportManager with custom file names
-                            var pdfManager = new PDFExportManager(_document);
-                            
-                            // Progress callback to update UI
-                            bool exportResult = pdfManager.ExportSheetsWithCustomNames(
-                                selectedSheets,
-                                outputFolder,
-                                ExportSettings,
-                                (current, total, sheetNumber) =>
-                                {
-                                    // Find corresponding item in queue
-                                    var queueItem = items.FirstOrDefault(i => 
-                                        i.ViewSheetNumber == sheetNumber && 
-                                        i.Format == format.ToUpper());
-                                    
-                                    if (queueItem != null)
-                                    {
-                                        queueItem.Status = "Processing";
-                                        queueItem.Progress = (current * 100.0) / total;
-                                        
-                                        if (current == total)
-                                        {
-                                            queueItem.Status = "Completed";
-                                            queueItem.Progress = 100;
-                                        }
-                                    }
-                                    
-                                    // Update overall progress
-                                    completedCount++;
-                                    var overallProgress = (completedCount * 100.0) / totalItems;
-                                    ExportProgressBar.Value = overallProgress;
-                                    ProgressPercentageText.Text = $"Completed {overallProgress:F0}%";
-                                    
-                                    WriteDebugLog($"Progress: {current}/{total} - {sheetNumber}");
-                                });
-                            
-                            if (exportResult)
+                            // Use PDF Export External Event for proper API context
+                            if (_pdfExportEvent != null && _pdfExportHandler != null)
                             {
-                                WriteDebugLog("PDF export completed successfully");
+                                WriteDebugLog("Using PDF Export External Event...");
+                                
+                                // CRITICAL: Update ExportSettings from UI controls BEFORE export
+                                UpdateExportSettingsFromUI();
+                                
+                                // Set export parameters
+                                _pdfExportHandler.Document = _document;
+                                _pdfExportHandler.SheetItems = selectedSheets;
+                                _pdfExportHandler.OutputFolder = outputFolder;
+                                _pdfExportHandler.Settings = ExportSettings;
+                                _pdfExportHandler.ProgressCallback = (current, total, sheetNumber, isFileCompleted) =>
+                                {
+                                    // Update UI on dispatcher thread
+                                    Dispatcher.Invoke(() =>
+                                    {
+                                        // Find corresponding item in queue
+                                        var queueItem = items.FirstOrDefault(i => 
+                                            i.ViewSheetNumber == sheetNumber && 
+                                            i.Format == format.ToUpper());
+                                        
+                                        if (queueItem != null)
+                                        {
+                                            if (isFileCompleted)
+                                            {
+                                                // File has been created and renamed - mark as completed
+                                                queueItem.Status = "Completed";
+                                                queueItem.Progress = 100;
+                                                WriteDebugLog($"✓ Sheet {sheetNumber} - File created successfully");
+                                            }
+                                            else
+                                            {
+                                                // Export started but file not yet completed
+                                                queueItem.Status = "Processing";
+                                                queueItem.Progress = (current * 100.0) / total;
+                                                WriteDebugLog($"⏳ Sheet {sheetNumber} - Exporting... {current}/{total}");
+                                            }
+                                        }
+                                        
+                                        // Update overall progress only when files are completed
+                                        if (isFileCompleted)
+                                        {
+                                            completedCount++;
+                                            var overallProgress = (completedCount * 100.0) / totalItems;
+                                            ExportProgressBar.Value = overallProgress;
+                                            ProgressPercentageText.Text = $"Completed {overallProgress:F0}%";
+                                        }
+                                        
+                                        WriteDebugLog($"Progress: {current}/{total} - {sheetNumber} - Completed: {isFileCompleted}");
+                                    });
+                                };
+                                
+                                // Raise the external event to run export in API context
+                                var raiseResult = _pdfExportEvent.Raise();
+                                WriteDebugLog($"PDF Export Event raised with result: {raiseResult}");
+                                
+                                // Wait for export to complete (with timeout)
+                                int waitCount = 0;
+                                while (raiseResult == ExternalEventRequest.Pending && waitCount < 100)
+                                {
+                                    System.Threading.Thread.Sleep(100);
+                                    waitCount++;
+                                }
+                                
+                                bool exportResult = _pdfExportHandler.ExportResult;
+                                
+                                if (exportResult)
+                                {
+                                    WriteDebugLog("PDF export completed successfully");
+                                }
+                                else
+                                {
+                                    WriteDebugLog($"PDF export failed: {_pdfExportHandler.ErrorMessage}");
+                                }
                             }
                             else
                             {
-                                WriteDebugLog("PDF export failed or partially completed");
+                                WriteDebugLog("ERROR: PDF Export Event not initialized (UIApplication is null)");
+                                MessageBox.Show("Cannot export PDF: External Event not initialized.\n\nPlease restart Revit and try again.",
+                                    "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
                             }
                         }
                         else if (format.ToUpper() == "DWG")
