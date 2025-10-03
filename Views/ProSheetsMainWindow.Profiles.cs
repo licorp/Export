@@ -88,6 +88,104 @@ namespace ProSheetsAddin.Views
                     ExportSettings.HideScopeBoxes = settings.HideScopeBoxes;
                     ExportSettings.CreateSeparateFolders = !settings.SaveAllInSameFolder;
                 }
+                
+                // Apply custom file names from XML (if this profile was imported from XML)
+                if (!string.IsNullOrEmpty(profile.XmlFilePath))
+                {
+                    WriteDebugLog($"Profile has XML file path: {profile.XmlFilePath}");
+                    
+                    if (System.IO.File.Exists(profile.XmlFilePath))
+                    {
+                        WriteDebugLog($"Loading custom file names from XML: {profile.XmlFilePath}");
+                        try
+                        {
+                            var xmlProfile = XMLProfileManager.LoadProfileFromXML(profile.XmlFilePath);
+                            if (xmlProfile != null)
+                            {
+                                ApplyCustomFileNamesFromXML(xmlProfile);
+                                WriteDebugLog($"Custom file names loaded successfully from XML");
+                            }
+                            else
+                            {
+                                WriteDebugLog($"WARNING: Failed to load XML profile from {profile.XmlFilePath}");
+                            }
+                        }
+                        catch (Exception xmlEx)
+                        {
+                            WriteDebugLog($"ERROR loading XML profile: {xmlEx.Message}");
+                        }
+                    }
+                    else
+                    {
+                        WriteDebugLog($"WARNING: XML file not found: {profile.XmlFilePath}");
+                    }
+                }
+                else
+                {
+                    WriteDebugLog($"Profile has no XML file path (not imported from XML)");
+                    
+                    // Ask user if they want to link an XML file for custom file names
+                    var result = System.Windows.MessageBox.Show(
+                        $"Profile '{profile.Name}' does not have custom file name settings.\n\n" +
+                        "Would you like to link an XML profile file to load custom file names?\n\n" +
+                        "(This is optional - click 'No' to use default file names)",
+                        "Link XML Profile?",
+                        System.Windows.MessageBoxButton.YesNo,
+                        System.Windows.MessageBoxImage.Question);
+                    
+                    if (result == System.Windows.MessageBoxResult.Yes)
+                    {
+                        // Open file dialog
+                        var openFileDialog = new Microsoft.Win32.OpenFileDialog
+                        {
+                            Title = "Select ProSheets XML Profile",
+                            Filter = "XML Profile Files (*.xml)|*.xml|All Files (*.*)|*.*",
+                            DefaultExt = ".xml"
+                        };
+                        
+                        if (openFileDialog.ShowDialog() == true)
+                        {
+                            WriteDebugLog($"User selected XML file: {openFileDialog.FileName}");
+                            
+                            try
+                            {
+                                // Load and apply custom file names
+                                var xmlProfile = XMLProfileManager.LoadProfileFromXML(openFileDialog.FileName);
+                                if (xmlProfile != null)
+                                {
+                                    // Save XML file path to profile
+                                    profile.XmlFilePath = openFileDialog.FileName;
+                                    _profileManager.SaveProfile(profile);
+                                    WriteDebugLog($"XML file path saved to profile: {openFileDialog.FileName}");
+                                    
+                                    // Apply custom file names
+                                    ApplyCustomFileNamesFromXML(xmlProfile);
+                                    WriteDebugLog($"Custom file names loaded from linked XML");
+                                    
+                                    System.Windows.MessageBox.Show(
+                                        $"XML profile linked successfully!\n" +
+                                        $"Custom file names have been applied.",
+                                        "Success",
+                                        System.Windows.MessageBoxButton.OK,
+                                        System.Windows.MessageBoxImage.Information);
+                                }
+                            }
+                            catch (Exception linkEx)
+                            {
+                                WriteDebugLog($"ERROR linking XML file: {linkEx.Message}");
+                                System.Windows.MessageBox.Show(
+                                    $"Failed to load XML file:\n{linkEx.Message}",
+                                    "Error",
+                                    System.Windows.MessageBoxButton.OK,
+                                    System.Windows.MessageBoxImage.Error);
+                            }
+                        }
+                        else
+                        {
+                            WriteDebugLog($"User cancelled XML file selection");
+                        }
+                    }
+                }
 
                 WriteDebugLog($"Profile '{profile.Name}' applied successfully");
             }
@@ -150,7 +248,67 @@ namespace ProSheetsAddin.Views
             {
                 WriteDebugLog($"Profile selected: {selectedProfile.Name}");
                 _selectedProfile = selectedProfile;
-                _profileManager.SwitchProfile(selectedProfile);
+                
+                // Enable Apply button when different profile is selected
+                if (ApplyProfileButton != null)
+                {
+                    ApplyProfileButton.IsEnabled = true;
+                }
+                
+                // Don't auto-apply, wait for user to click Apply button
+                WriteDebugLog($"Profile '{selectedProfile.Name}' selected. Click Apply to load settings.");
+            }
+        }
+
+        /// <summary>
+        /// Apply selected profile button clicked
+        /// </summary>
+        private void ApplyProfile_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Apply Profile clicked");
+            
+            if (ProfileComboBox.SelectedItem is Profile selectedProfile)
+            {
+                WriteDebugLog($"Applying profile: {selectedProfile.Name}");
+                
+                try
+                {
+                    // Switch to selected profile (this will trigger ProfileChanged event)
+                    _profileManager.SwitchProfile(selectedProfile);
+                    
+                    // Disable Apply button after applying
+                    if (ApplyProfileButton != null)
+                    {
+                        ApplyProfileButton.IsEnabled = false;
+                    }
+                    
+                    WriteDebugLog($"Profile '{selectedProfile.Name}' applied successfully");
+                    
+                    // Show notification
+                    System.Windows.MessageBox.Show(
+                        $"Profile '{selectedProfile.Name}' has been applied successfully.",
+                        "Profile Applied",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    WriteDebugLog($"ERROR applying profile '{selectedProfile.Name}': {ex.Message}");
+                    System.Windows.MessageBox.Show(
+                        $"Failed to apply profile: {ex.Message}",
+                        "Error",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                }
+            }
+            else
+            {
+                WriteDebugLog("No profile selected to apply");
+                System.Windows.MessageBox.Show(
+                    "Please select a profile first.",
+                    "No Profile Selected",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
             }
         }
 
@@ -214,21 +372,102 @@ namespace ProSheetsAddin.Views
                                     if (xmlProfile != null && xmlProfile.TemplateInfo != null && newProfile.Settings != null)
                                     {
                                         var template = xmlProfile.TemplateInfo;
-                                        WriteDebugLog($"TemplateInfo found - PDF:{template.IsPDFChecked}, DWG:{template.IsDWGChecked}, IFC:{template.IsIFCChecked}");
+                                        WriteDebugLog($"=== IMPORTING XML PROFILE SETTINGS ===");
+                                        WriteDebugLog($"Profile Name: {xmlProfile.Name}");
+                                        WriteDebugLog($"TemplateInfo - PDF:{template.IsPDFChecked}, DWG:{template.IsDWGChecked}, IFC:{template.IsIFCChecked}");
                                         
-                                        // Copy settings from ProSheetsXMLProfile.TemplateInfo
+                                        // ===== APPLY ALL SETTINGS FROM XML =====
+                                        
+                                        // Format checkboxes
                                         newProfile.Settings.PDFEnabled = template.IsPDFChecked;
                                         newProfile.Settings.DWGEnabled = template.IsDWGChecked;
                                         newProfile.Settings.DGNEnabled = template.IsDGNChecked;
                                         newProfile.Settings.IFCEnabled = template.IsIFCChecked;
                                         newProfile.Settings.IMGEnabled = template.IsIMGChecked;
+                                        WriteDebugLog($"Format flags set - PDF:{template.IsPDFChecked}, DWG:{template.IsDWGChecked}, DGN:{template.IsDGNChecked}, IFC:{template.IsIFCChecked}, IMG:{template.IsIMGChecked}");
+                                        
+                                        // View options
                                         newProfile.Settings.HideCropBoundaries = template.HideCropBoundaries;
                                         newProfile.Settings.HideScopeBoxes = template.HideScopeBox;
-                                        newProfile.Settings.SaveAllInSameFolder = !template.IsSeparateFile;
+                                        WriteDebugLog($"View options set - HideCropBoundaries:{template.HideCropBoundaries}, HideScopeBoxes:{template.HideScopeBox}");
                                         
-                                        WriteDebugLog($"Settings copied to profile '{profileName}'");
+                                        // File settings
+                                        newProfile.Settings.SaveAllInSameFolder = !template.IsSeparateFile;
+                                        if (!string.IsNullOrEmpty(template.FilePath))
+                                        {
+                                            newProfile.Settings.OutputFolder = template.FilePath;
+                                        }
+                                        WriteDebugLog($"File settings set - SeparateFiles:{template.IsSeparateFile}, OutputFolder:{template.FilePath}");
+                                        
+                                        // PDF specific settings
+                                        newProfile.Settings.PDFVectorProcessing = template.IsVectorProcessing;
+                                        newProfile.Settings.PDFRasterQuality = template.RasterQuality;
+                                        newProfile.Settings.PDFColorMode = template.Color;
+                                        newProfile.Settings.PDFFitToPage = template.IsFitToPage;
+                                        newProfile.Settings.PDFIsCenter = template.IsCenter;
+                                        newProfile.Settings.PDFMarginType = template.SelectedMarginType;
+                                        WriteDebugLog($"PDF settings set - Vector:{template.IsVectorProcessing}, Quality:{template.RasterQuality}, Color:{template.Color}, FitToPage:{template.IsFitToPage}");
+                                        
+                                        // DWF settings
+                                        if (template.DWF != null)
+                                        {
+                                            newProfile.Settings.DWFImageFormat = template.DWF.OptImageFormat;
+                                            newProfile.Settings.DWFImageQuality = template.DWF.OptImageQuality;
+                                            newProfile.Settings.DWFExportTextures = template.DWF.OptExportTextures;
+                                            WriteDebugLog($"DWF settings set - Format:{template.DWF.OptImageFormat}, Quality:{template.DWF.OptImageQuality}");
+                                        }
+                                        
+                                        // NWC settings
+                                        if (template.NWC != null)
+                                        {
+                                            newProfile.Settings.NWCConvertElementProperties = template.NWC.ConvertElementProperties;
+                                            newProfile.Settings.NWCCoordinates = template.NWC.Coordinates;
+                                            newProfile.Settings.NWCDivideFileIntoLevels = template.NWC.DivideFileIntoLevels;
+                                            newProfile.Settings.NWCExportElementIds = template.NWC.ExportElementIds;
+                                            newProfile.Settings.NWCExportParts = template.NWC.ExportParts;
+                                            newProfile.Settings.NWCFacetingFactor = template.NWC.FacetingFactor;
+                                            WriteDebugLog($"NWC settings set - Coordinates:{template.NWC.Coordinates}, DivideIntoLevels:{template.NWC.DivideFileIntoLevels}");
+                                        }
+                                        
+                                        // IFC settings
+                                        if (template.IFC != null)
+                                        {
+                                            newProfile.Settings.IFCFileVersion = template.IFC.FileVersion;
+                                            newProfile.Settings.IFCSpaceBoundaries = template.IFC.SpaceBoundaries;
+                                            newProfile.Settings.IFCSitePlacement = template.IFC.SitePlacement;
+                                            newProfile.Settings.IFCExportBaseQuantities = template.IFC.ExportBaseQuantities;
+                                            newProfile.Settings.IFCExportIFCCommonPropertySets = template.IFC.ExportIFCCommonPropertySets;
+                                            newProfile.Settings.IFCTessellationLevelOfDetail = template.IFC.TessellationLevelOfDetail;
+                                            WriteDebugLog($"IFC settings set - Version:{template.IFC.FileVersion}, SpaceBoundaries:{template.IFC.SpaceBoundaries}");
+                                        }
+                                        
+                                        // IMG settings
+                                        if (template.IMG != null)
+                                        {
+                                            newProfile.Settings.IMGImageResolution = template.IMG.ImageResolution;
+                                            newProfile.Settings.IMGFileType = template.IMG.HLRandWFViewsFileType;
+                                            newProfile.Settings.IMGZoomType = template.IMG.ZoomType;
+                                            newProfile.Settings.IMGPixelSize = template.IMG.PixelSize;
+                                            WriteDebugLog($"IMG settings set - Resolution:{template.IMG.ImageResolution}, FileType:{template.IMG.HLRandWFViewsFileType}");
+                                        }
+                                        
+                                        // Save profile with all settings
+                                        WriteDebugLog($"=== SAVING PROFILE WITH ALL SETTINGS ===");
+                                        
+                                        // Save XML file path for future re-loading
+                                        newProfile.XmlFilePath = dialog.ImportFilePath;
+                                        WriteDebugLog($"XML file path saved: {dialog.ImportFilePath}");
+                                        
                                         _profileManager.SaveProfile(newProfile);
-                                        WriteDebugLog($"Profile '{profileName}' saved successfully");
+                                        WriteDebugLog($"Profile '{profileName}' saved successfully with all XML settings applied");
+                                        
+                                        // Apply settings to UI immediately
+                                        WriteDebugLog($"=== APPLYING SETTINGS TO UI ===");
+                                        ApplyProfileToUI(newProfile);
+                                        WriteDebugLog($"Settings applied to UI successfully");
+                                        
+                                        // Apply custom file names from XML (if available)
+                                        ApplyCustomFileNamesFromXML(xmlProfile);
                                     }
                                     else
                                     {
@@ -376,5 +615,137 @@ namespace ProSheetsAddin.Views
         }
 
         #endregion Options CheckBox Event Handlers
+        
+        #region Custom File Name from XML
+        
+        /// <summary>
+        /// Apply custom file names from XML profile to all sheets
+        /// </summary>
+        private void ApplyCustomFileNamesFromXML(ProSheetsXMLProfile xmlProfile)
+        {
+            if (xmlProfile == null || xmlProfile.TemplateInfo == null)
+            {
+                WriteDebugLog("ApplyCustomFileNamesFromXML: xmlProfile or TemplateInfo is null");
+                return;
+            }
+            
+            var template = xmlProfile.TemplateInfo;
+            
+            // Check if custom file name parameters exist in SelectSheetParameters.CombineParameters
+            if (template.SelectSheetParameters?.CombineParameters == null || 
+                template.SelectSheetParameters.CombineParameters.Count == 0)
+            {
+                WriteDebugLog("No custom file name parameters found in XML (SelectSheetParameters.CombineParameters is null or empty)");
+                return;
+            }
+            
+            WriteDebugLog($"=== APPLYING CUSTOM FILE NAME PARAMETERS FROM XML ===");
+            WriteDebugLog($"Found {template.SelectSheetParameters.CombineParameters.Count} combine parameters in XML");
+            WriteDebugLog($"Combine name: {template.SelectSheetParameters.CombineParameterName}");
+            
+            try
+            {
+                // Get all ViewSheet elements from document
+                var collector = new Autodesk.Revit.DB.FilteredElementCollector(_document);
+                var allSheets = collector
+                    .OfClass(typeof(Autodesk.Revit.DB.ViewSheet))
+                    .Cast<Autodesk.Revit.DB.ViewSheet>()
+                    .Where(s => !s.IsTemplate)
+                    .ToList();
+                
+                WriteDebugLog($"Found {allSheets.Count} sheets in document");
+                
+                // Apply custom names to sheets in UI
+                int appliedCount = 0;
+                foreach (var revitSheet in allSheets)
+                {
+                    // Build custom file name from parameters
+                    // Each parameter has its own separator in xml:space_x003D_preserve attribute
+                    var customFileNameBuilder = new System.Text.StringBuilder();
+                    
+                    for (int i = 0; i < template.SelectSheetParameters.CombineParameters.Count; i++)
+                    {
+                        var param = template.SelectSheetParameters.CombineParameters[i];
+                        
+                        // Convert ParameterId string to int
+                        int paramId = 0;
+                        int.TryParse(param.ParameterId, out paramId);
+                        
+                        // Get parameter value from sheet
+                        string value = GetSheetParameterValue(revitSheet, param.ParameterName, paramId);
+                        if (!string.IsNullOrEmpty(value))
+                        {
+                            customFileNameBuilder.Append(value);
+                        }
+                        
+                        // Add separator AFTER current parameter (not before)
+                        // Each parameter has its own separator in XmlSpaceAttribute
+                        if (i < template.SelectSheetParameters.CombineParameters.Count - 1) // Not last parameter
+                        {
+                            string separator = param.XmlSpaceAttribute;
+                            if (string.IsNullOrEmpty(separator))
+                            {
+                                separator = "-"; // Default separator
+                            }
+                            customFileNameBuilder.Append(separator);
+                            WriteDebugLog($"  Param {i+1}: '{param.ParameterName}' = '{value}', separator: '{separator}'");
+                        }
+                        else
+                        {
+                            WriteDebugLog($"  Param {i+1}: '{param.ParameterName}' = '{value}' (last, no separator)");
+                        }
+                    }
+                    
+                    string customFileName = customFileNameBuilder.ToString();
+                    
+                    // Find matching sheet in Sheets collection
+                    var sheet = Sheets.FirstOrDefault(s => s.Number == revitSheet.SheetNumber);
+                    if (sheet != null)
+                    {
+                        sheet.CustomFileName = customFileName;
+                        appliedCount++;
+                        WriteDebugLog($"Applied custom name to sheet {sheet.Number}: '{customFileName}'");
+                    }
+                }
+                
+                WriteDebugLog($"Custom file names applied to {appliedCount}/{Sheets.Count} sheets");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR applying custom file names from XML: {ex.Message}");
+                WriteDebugLog($"Stack trace: {ex.StackTrace}");
+            }
+        }
+        
+        /// <summary>
+        /// Get parameter value from sheet by name or ID
+        /// </summary>
+        private string GetSheetParameterValue(Autodesk.Revit.DB.ViewSheet sheet, string parameterName, int parameterId)
+        {
+            try
+            {
+                // Try by parameter ID first (more reliable)
+                var param = sheet.get_Parameter((Autodesk.Revit.DB.BuiltInParameter)parameterId);
+                if (param != null && param.HasValue)
+                {
+                    return param.AsString() ?? param.AsValueString() ?? "";
+                }
+                
+                // Try by parameter name as fallback
+                param = sheet.LookupParameter(parameterName);
+                if (param != null && param.HasValue)
+                {
+                    return param.AsString() ?? param.AsValueString() ?? "";
+                }
+                
+                return "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+        
+        #endregion Custom File Name from XML
     }
 }

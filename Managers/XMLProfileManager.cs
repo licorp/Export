@@ -100,51 +100,155 @@ namespace ProSheetsAddin.Managers
         {
             WriteDebugLog($"Generating custom file names for {sheets.Count} sheets");
             var result = new List<SheetFileNameInfo>();
-            var parameters = profile.TemplateInfo.CustomFileNameParameters.CombineParameters.ParameterModels;
             
-            foreach (var sheet in sheets)
+            // Get selected parameters from SelectedParams_Virtual
+            List<SelectionParameter> parameters = null;
+            string separator = "-";
+            
+            if (profile.TemplateInfo.SelectionSheets?.SelectedParamsVirtual?.SelectionParameters != null)
             {
-                var fileName = BuildCustomFileName(sheet, parameters, profile.TemplateInfo.SelectionSheets.FieldSeparator);
-                
-                result.Add(new SheetFileNameInfo
+                parameters = profile.TemplateInfo.SelectionSheets.SelectedParamsVirtual.SelectionParameters
+                    .Where(p => p.IsSelected)
+                    .ToList();
+                    
+                separator = profile.TemplateInfo.SelectionSheets.FieldSeparator ?? "-";
+                WriteDebugLog($"Found {parameters.Count} selected parameters, separator: '{separator}'");
+            }
+            
+            if (parameters == null || !parameters.Any())
+            {
+                WriteDebugLog("No custom filename parameters found, using sheet numbers");
+                // Fallback to sheet number only
+                foreach (var sheet in sheets)
                 {
-                    SheetId = sheet.Id.IntegerValue.ToString(),
-                    SheetNumber = sheet.SheetNumber,
-                    SheetName = sheet.Name,
-                    Revision = GetSheetRevision(sheet),
-                    Size = GetSheetPaperSize(sheet),
-                    CustomFileName = fileName,
-                    IsSelected = true
-                });
+                    result.Add(new SheetFileNameInfo
+                    {
+                        SheetId = sheet.Id.IntegerValue.ToString(),
+                        SheetNumber = sheet.SheetNumber,
+                        SheetName = sheet.Name,
+                        Revision = GetSheetRevision(sheet),
+                        Size = GetSheetPaperSize(sheet),
+                        CustomFileName = sheet.SheetNumber,
+                        IsSelected = true
+                    });
+                }
+            }
+            else
+            {
+                // Build custom filenames using selected parameters
+                foreach (var sheet in sheets)
+                {
+                    var fileName = BuildCustomFileNameFromSelectionParams(sheet, parameters, separator);
+                    
+                    result.Add(new SheetFileNameInfo
+                    {
+                        SheetId = sheet.Id.IntegerValue.ToString(),
+                        SheetNumber = sheet.SheetNumber,
+                        SheetName = sheet.Name,
+                        Revision = GetSheetRevision(sheet),
+                        Size = GetSheetPaperSize(sheet),
+                        CustomFileName = fileName,
+                        IsSelected = true
+                    });
+                }
             }
             
             WriteDebugLog($"Generated {result.Count} custom file names");
             return result;
         }
-
-        private static string BuildCustomFileName(ViewSheet sheet, List<ParameterModel> parameters, string separator)
+        
+        private static string BuildCustomFileNameFromSelectionParams(
+            ViewSheet sheet, 
+            List<SelectionParameter> parameters, 
+            string separator)
         {
             var parts = new List<string>();
             
             foreach (var param in parameters)
             {
-                string value = GetParameterValue(sheet, param.ParameterName);
+                string value = "";
+                
+                // Handle custom separators
+                if (param.Type == "CustemSeparator")
+                {
+                    // Use the DisplayName as the separator
+                    if (!string.IsNullOrEmpty(param.DisplayName))
+                    {
+                        parts.Add(param.DisplayName.Trim());
+                    }
+                    continue;
+                }
+                
+                // Get parameter value based on DisplayName
+                string paramName = param.DisplayName?.Trim() ?? "";
+                
+                switch (paramName)
+                {
+                    case "Sheet Number":
+                        value = sheet.SheetNumber;
+                        break;
+                    case "Sheet Number Prefix":
+                        // Extract prefix from sheet number (e.g., "A-101" -> "A")
+                        var sheetNumber = sheet.SheetNumber;
+                        var dashIndex = sheetNumber.IndexOf('-');
+                        value = dashIndex > 0 ? sheetNumber.Substring(0, dashIndex) : "";
+                        break;
+                    case "Sheet Name":
+                        value = sheet.Name;
+                        break;
+                    case "Current Revision":
+                        value = GetSheetRevision(sheet);
+                        break;
+                    default:
+                        // Try to get parameter from sheet
+                        var sheetParam = sheet.LookupParameter(paramName);
+                        if (sheetParam != null)
+                        {
+                            value = GetParameterValueAsString(sheetParam);
+                        }
+                        break;
+                }
+                
                 if (!string.IsNullOrEmpty(value))
                 {
-                    string part = $"{param.Prefix}{value}{param.Suffix}";
-                    parts.Add(part);
+                    parts.Add(value);
                 }
             }
             
-            var fileName = string.Join(separator, parts.Where(p => !string.IsNullOrEmpty(p)));
+            // Join parts with separator, but don't add separator between custom separators
+            var fileName = string.Join("", parts);
             
             // Fallback to sheet number if no custom name generated
-            if (string.IsNullOrEmpty(fileName))
+            if (string.IsNullOrWhiteSpace(fileName))
             {
                 fileName = sheet.SheetNumber;
             }
             
             return fileName;
+        }
+        
+        private static string GetParameterValueAsString(Parameter param)
+        {
+            try
+            {
+                switch (param.StorageType)
+                {
+                    case StorageType.String:
+                        return param.AsString() ?? "";
+                    case StorageType.Integer:
+                        return param.AsInteger().ToString();
+                    case StorageType.Double:
+                        return param.AsDouble().ToString("F2");
+                    case StorageType.ElementId:
+                        return param.AsValueString() ?? "";
+                    default:
+                        return "";
+                }
+            }
+            catch
+            {
+                return "";
+            }
         }
 
         private static string GetParameterValue(ViewSheet sheet, string parameterName)
@@ -266,6 +370,207 @@ namespace ProSheetsAddin.Managers
 
             WriteDebugLog($"Converted profile with {profile.SelectedFormats.Count} formats");
             return profile;
+        }
+        
+        /// <summary>
+        /// Apply XML profile settings to UI/ViewModel
+        /// This method maps all XML settings to the current UI state
+        /// </summary>
+        public static void ApplyXMLProfileToUI(ProSheetsXMLProfile xmlProfile, 
+            Action<string, object> setUIProperty)
+        {
+            if (xmlProfile == null || setUIProperty == null)
+            {
+                WriteDebugLog("ERROR: Cannot apply XML profile - null parameters");
+                return;
+            }
+
+            WriteDebugLog($"=== APPLYING XML PROFILE TO UI: {xmlProfile.Name} ===");
+            var template = xmlProfile.TemplateInfo;
+
+            try
+            {
+                // PDF/Export Format Settings
+                WriteDebugLog("Applying PDF/Export format settings...");
+                setUIProperty("IsVectorProcessing", template.IsVectorProcessing);
+                setUIProperty("RasterQuality", template.RasterQuality);
+                setUIProperty("ColorMode", template.Color);
+                setUIProperty("IsFitToPage", template.IsFitToPage);
+                
+                // Paper Placement Settings
+                WriteDebugLog("Applying paper placement settings...");
+                setUIProperty("IsCenter", template.IsCenter);
+                setUIProperty("SelectedMarginType", template.SelectedMarginType);
+                setUIProperty("PaperSize", template.PaperSize);
+                
+                // View Options
+                WriteDebugLog("Applying view options...");
+                setUIProperty("ViewLinksInBlue", template.ViewLink);
+                setUIProperty("HideRefWorkPlanes", template.HidePlanes);
+                setUIProperty("HideScopeBoxes", template.HideScopeBox);
+                setUIProperty("HideUnreferencedViewTags", template.HideUnreferencedTags);
+                setUIProperty("HideCropBoundaries", template.HideCropBoundaries);
+                setUIProperty("ReplaceHalftone", template.ReplaceHalftone);
+                setUIProperty("MaskCoincidentLines", template.MaskCoincidentLines);
+                
+                // File Settings
+                WriteDebugLog("Applying file settings...");
+                setUIProperty("CreateSeparateFiles", template.IsSeparateFile);
+                setUIProperty("OutputFolder", template.FilePath ?? "");
+                
+                // DWF Settings
+                if (template.DWF != null)
+                {
+                    WriteDebugLog("Applying DWF settings...");
+                    setUIProperty("DWF_ImageFormat", template.DWF.OptImageFormat);
+                    setUIProperty("DWF_ImageQuality", template.DWF.OptImageQuality);
+                    setUIProperty("DWF_ExportTextures", template.DWF.OptExportTextures);
+                }
+                
+                // NWC Settings
+                if (template.NWC != null)
+                {
+                    WriteDebugLog("Applying NWC settings...");
+                    setUIProperty("NWC_ConvertElementProperties", template.NWC.ConvertElementProperties);
+                    setUIProperty("NWC_Coordinates", template.NWC.Coordinates);
+                    setUIProperty("NWC_DivideFileIntoLevels", template.NWC.DivideFileIntoLevels);
+                    setUIProperty("NWC_ExportElementIds", template.NWC.ExportElementIds);
+                    setUIProperty("NWC_ExportParts", template.NWC.ExportParts);
+                    setUIProperty("NWC_ExportRoomAsAttribute", template.NWC.ExportRoomAsAttribute);
+                    setUIProperty("NWC_FacetingFactor", template.NWC.FacetingFactor);
+                }
+                
+                // IFC Settings
+                if (template.IFC != null)
+                {
+                    WriteDebugLog("Applying IFC settings...");
+                    setUIProperty("IFC_FileVersion", template.IFC.FileVersion);
+                    setUIProperty("IFC_SpaceBoundaries", template.IFC.SpaceBoundaries);
+                    setUIProperty("IFC_SitePlacement", template.IFC.SitePlacement);
+                    setUIProperty("IFC_ExportBaseQuantities", template.IFC.ExportBaseQuantities);
+                    setUIProperty("IFC_ExportIFCCommonPropertySets", template.IFC.ExportIFCCommonPropertySets);
+                    setUIProperty("IFC_TessellationLevelOfDetail", template.IFC.TessellationLevelOfDetail);
+                    setUIProperty("IFC_VisibleElementsOfCurrentView", template.IFC.VisibleElementsOfCurrentView);
+                }
+                
+                // IMG Settings
+                if (template.IMG != null)
+                {
+                    WriteDebugLog("Applying IMG settings...");
+                    setUIProperty("IMG_ImageResolution", template.IMG.ImageResolution);
+                    setUIProperty("IMG_FileType", template.IMG.HLRandWFViewsFileType);
+                    setUIProperty("IMG_ZoomType", template.IMG.ZoomType);
+                    setUIProperty("IMG_PixelSize", template.IMG.PixelSize);
+                }
+                
+                // Format Checkboxes
+                WriteDebugLog("Applying format checkboxes...");
+                setUIProperty("IsPDFChecked", template.IsPDFChecked);
+                setUIProperty("IsDWGChecked", template.IsDWGChecked);
+                setUIProperty("IsDGNChecked", template.IsDGNChecked);
+                setUIProperty("IsIFCChecked", template.IsIFCChecked);
+                setUIProperty("IsIMGChecked", template.IsIMGChecked);
+                setUIProperty("IsNWCChecked", template.IsNWCChecked);
+                setUIProperty("IsDWFChecked", template.IsDWFChecked);
+                
+                // Custom File Name Parameters
+                if (template.SelectionSheets?.SelectedParamsVirtual?.SelectionParameters != null)
+                {
+                    WriteDebugLog($"Applying custom filename parameters ({template.SelectionSheets.SelectedParamsVirtual.SelectionParameters.Count} params)...");
+                    var selectedParams = template.SelectionSheets.SelectedParamsVirtual.SelectionParameters
+                        .Where(p => p.IsSelected)
+                        .Select(p => p.DisplayName?.Trim())
+                        .Where(n => !string.IsNullOrEmpty(n))
+                        .ToList();
+                    
+                    setUIProperty("CustomFileNameParameters", selectedParams);
+                    WriteDebugLog($"Selected parameters: {string.Join(", ", selectedParams)}");
+                }
+                
+                WriteDebugLog($"=== XML PROFILE APPLIED SUCCESSFULLY: {xmlProfile.Name} ===");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR applying XML profile: {ex.Message}");
+                WriteDebugLog($"Stack trace: {ex.StackTrace}");
+            }
+        }
+        
+        /// <summary>
+        /// Get detailed export settings from XML profile for specific format
+        /// </summary>
+        public static Dictionary<string, object> GetFormatSettings(ProSheetsXMLProfile xmlProfile, string format)
+        {
+            var settings = new Dictionary<string, object>();
+            
+            if (xmlProfile?.TemplateInfo == null) return settings;
+            
+            var template = xmlProfile.TemplateInfo;
+            
+            switch (format.ToUpper())
+            {
+                case "PDF":
+                    settings["VectorProcessing"] = template.IsVectorProcessing;
+                    settings["RasterQuality"] = template.RasterQuality;
+                    settings["ColorMode"] = template.Color;
+                    settings["FitToPage"] = template.IsFitToPage;
+                    settings["IsCenter"] = template.IsCenter;
+                    settings["MarginType"] = template.SelectedMarginType;
+                    break;
+                    
+                case "DWF":
+                    if (template.DWF != null)
+                    {
+                        settings["IsDwfx"] = template.DWF.IsDwfx;
+                        settings["ImageFormat"] = template.DWF.OptImageFormat;
+                        settings["ImageQuality"] = template.DWF.OptImageQuality;
+                        settings["ExportTextures"] = template.DWF.OptExportTextures;
+                        settings["FitToPage"] = template.DWF.IsFitToPage;
+                        settings["RasterQuality"] = template.DWF.RasterQuality;
+                    }
+                    break;
+                    
+                case "NWC":
+                    if (template.NWC != null)
+                    {
+                        settings["ConvertElementProperties"] = template.NWC.ConvertElementProperties;
+                        settings["Coordinates"] = template.NWC.Coordinates;
+                        settings["DivideFileIntoLevels"] = template.NWC.DivideFileIntoLevels;
+                        settings["ExportElementIds"] = template.NWC.ExportElementIds;
+                        settings["ExportParts"] = template.NWC.ExportParts;
+                        settings["ExportRoomAsAttribute"] = template.NWC.ExportRoomAsAttribute;
+                        settings["FacetingFactor"] = template.NWC.FacetingFactor;
+                    }
+                    break;
+                    
+                case "IFC":
+                    if (template.IFC != null)
+                    {
+                        settings["FileVersion"] = template.IFC.FileVersion;
+                        settings["SpaceBoundaries"] = template.IFC.SpaceBoundaries;
+                        settings["SitePlacement"] = template.IFC.SitePlacement;
+                        settings["ExportBaseQuantities"] = template.IFC.ExportBaseQuantities;
+                        settings["ExportIFCCommonPropertySets"] = template.IFC.ExportIFCCommonPropertySets;
+                        settings["TessellationLevelOfDetail"] = template.IFC.TessellationLevelOfDetail;
+                        settings["VisibleElementsOfCurrentView"] = template.IFC.VisibleElementsOfCurrentView;
+                    }
+                    break;
+                    
+                case "IMG":
+                case "JPG":
+                case "PNG":
+                    if (template.IMG != null)
+                    {
+                        settings["ImageResolution"] = template.IMG.ImageResolution;
+                        settings["FileType"] = template.IMG.HLRandWFViewsFileType;
+                        settings["ZoomType"] = template.IMG.ZoomType;
+                        settings["PixelSize"] = template.IMG.PixelSize;
+                    }
+                    break;
+            }
+            
+            WriteDebugLog($"Retrieved {settings.Count} settings for format: {format}");
+            return settings;
         }
 
         private static void WriteDebugLog(string message)

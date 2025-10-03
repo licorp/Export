@@ -4,7 +4,7 @@
 library
 C#
 .cs
-c:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\
+C:\Users\quoc.nguyen\Downloads\Compressed\source-code-full-1\Source code full\RevitAPIMEP\Export\Export\obj\x64\Debug\
 ProSheetsAddin
 none
 false
@@ -13,7 +13,7 @@ DEBUG;TRACE
 4-428821549
 
 42-804436738
-17864637734
+17-843612361
 Views\CustomFileNameDialog.xaml;Views\ExportCompletedDialog.xaml;Views\ProfileNameDialog.xaml;Views\ProSheetsMainWindow.xaml;
 
 False

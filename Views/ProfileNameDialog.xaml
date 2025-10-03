@@ -24,10 +24,10 @@
         <!-- Options -->
         <GroupBox Grid.Row="1" Padding="10" Margin="0,0,0,10" BorderBrush="#CCC" BorderThickness="1">
             <StackPanel>
-                <RadioButton x:Name="CopyCurrentRadio" Content="Copy from current settings" IsChecked="True" Margin="0,0,0,8" FontSize="12"/>
-                <RadioButton x:Name="UseDefaultRadio" Content="Use default settings" Margin="0,0,0,8" FontSize="12"/>
+                <RadioButton x:Name="CopyCurrentRadio" Content="Copy from current settings" IsChecked="True" Margin="0,0,0,8" FontSize="12" GroupName="ProfileMode"/>
+                <RadioButton x:Name="UseDefaultRadio" Content="Use default settings" Margin="0,0,0,8" FontSize="12" GroupName="ProfileMode"/>
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="ImportFileRadio" Content="Import from a file" VerticalAlignment="Center" FontSize="12"/>
+                    <RadioButton x:Name="ImportFileRadio" Content="Import from a file" VerticalAlignment="Center" FontSize="12" GroupName="ProfileMode"/>
                     <Button x:Name="BrowseProfileFileButton"
                             Content="..."
                             Width="28" Height="28"

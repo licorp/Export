@@ -29,6 +29,9 @@ namespace ProSheetsAddin.Models
 
         public DateTime CreatedDate { get; set; } = DateTime.Now;
         public string Description { get; set; }
+        
+        // XML Profile data (for imported profiles)
+        public string XmlFilePath { get; set; }
 
         // Profile Settings
         public ProfileSettings Settings { get; set; } = new ProfileSettings();
@@ -68,6 +71,14 @@ namespace ProSheetsAddin.Models
         public string RasterQuality { get; set; } = "High";
         public string ColorMode { get; set; } = "Color";
         
+        // PDF Advanced Settings (from XML import)
+        public bool PDFVectorProcessing { get; set; } = true;
+        public string PDFRasterQuality { get; set; } = "High";
+        public string PDFColorMode { get; set; } = "Color";
+        public bool PDFFitToPage { get; set; } = false;
+        public bool PDFIsCenter { get; set; } = true;
+        public string PDFMarginType { get; set; } = "No Margin";
+        
         // PDF Options
         public bool ViewLinksInBlue { get; set; } = false;
         public bool HideRefWorkPlanes { get; set; } = true;
@@ -86,6 +97,33 @@ namespace ProSheetsAddin.Models
         public bool NWCEnabled { get; set; } = false;
         public bool IFCEnabled { get; set; } = false;
         public bool IMGEnabled { get; set; } = false;
+        
+        // DWF Settings (from XML import)
+        public string DWFImageFormat { get; set; } = "Lossless";
+        public string DWFImageQuality { get; set; } = "Default";
+        public bool DWFExportTextures { get; set; } = true;
+        
+        // NWC Settings (from XML import)
+        public bool NWCConvertElementProperties { get; set; } = true;
+        public string NWCCoordinates { get; set; } = "Shared";
+        public bool NWCDivideFileIntoLevels { get; set; } = true;
+        public bool NWCExportElementIds { get; set; } = true;
+        public bool NWCExportParts { get; set; } = true;
+        public double NWCFacetingFactor { get; set; } = 1.0;
+        
+        // IFC Settings (from XML import)
+        public string IFCFileVersion { get; set; } = "IFC2x3CV2";
+        public string IFCSpaceBoundaries { get; set; } = "None";
+        public string IFCSitePlacement { get; set; } = "Current Shared Coordinates";
+        public bool IFCExportBaseQuantities { get; set; } = false;
+        public bool IFCExportIFCCommonPropertySets { get; set; } = true;
+        public string IFCTessellationLevelOfDetail { get; set; } = "Low";
+        
+        // IMG Settings (from XML import)
+        public string IMGImageResolution { get; set; } = "DPI_72";
+        public string IMGFileType { get; set; } = "PNG";
+        public string IMGZoomType { get; set; } = "FitToPage";
+        public string IMGPixelSize { get; set; } = "2048";
 
         // Custom File Name Settings
         public List<string> CustomFileNameParameters { get; set; } = new List<string>();
