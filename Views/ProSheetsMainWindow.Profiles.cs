@@ -124,7 +124,26 @@ namespace ProSheetsAddin.Views
                 {
                     WriteDebugLog($"Profile has no XML file path (not imported from XML)");
                     
-                    // Ask user if they want to link an XML file for custom file names
+                    // Check if profile has saved custom file name configuration
+                    bool hasCustomConfig = !string.IsNullOrEmpty(profile.Settings?.CustomFileNameConfigJson);
+                    
+                    if (hasCustomConfig)
+                    {
+                        WriteDebugLog($"Profile has saved custom file name configuration (from previous edit)");
+                        // Configuration will be automatically loaded when user opens Custom File Name dialog
+                        // No need to prompt for XML linking
+                        return;
+                    }
+                    
+                    // Don't show dialog for "Default" profile - just use default file names
+                    if (profile.Name.Equals("Default", StringComparison.OrdinalIgnoreCase))
+                    {
+                        WriteDebugLog($"Profile 'Default' has no custom config - will use default file names");
+                        return;
+                    }
+                    
+                    // Only ask user to link XML if NO custom configuration exists (and not Default profile)
+                    WriteDebugLog($"Profile has no custom file name configuration - asking user to link XML");
                     var result = System.Windows.MessageBox.Show(
                         $"Profile '{profile.Name}' does not have custom file name settings.\n\n" +
                         "Would you like to link an XML profile file to load custom file names?\n\n" +

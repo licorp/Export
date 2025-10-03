@@ -10,11 +10,11 @@ none
 false
 DEBUG;TRACE
 
-4-428821549
+6758896605
 
-42-804436738
+47-567829478
 17-843612361
-Views\CustomFileNameDialog.xaml;Views\ExportCompletedDialog.xaml;Views\ProfileNameDialog.xaml;Views\ProSheetsMainWindow.xaml;
+Views\CustomFileNameDialog.xaml;Views\ExportCompletedDialog.xaml;Views\ProfileNameDialog.xaml;Views\ProSheetsMainWindow.xaml;Views\SaveViewSheetSetDialog.xaml;Views\SelectExistingSetDialog.xaml;
 
 False
 

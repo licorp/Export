@@ -41,6 +41,45 @@ namespace ProSheetsAddin.Views
         // PDF Export External Event
         private ExternalEvent _pdfExportEvent;
         private Events.PDFExportEventHandler _pdfExportHandler;
+        
+        // View/Sheet Set Manager
+        private ViewSheetSetManager _viewSheetSetManager;
+        private ObservableCollection<ViewSheetSetInfo> _viewSheetSets;
+        
+        public ObservableCollection<ViewSheetSetInfo> ViewSheetSets
+        {
+            get => _viewSheetSets;
+            set
+            {
+                _viewSheetSets = value;
+                OnPropertyChanged(nameof(ViewSheetSets));
+                OnPropertyChanged(nameof(SelectedSetsDisplay));
+            }
+        }
+        
+        /// <summary>
+        /// Display text for selected sets in ToggleButton
+        /// </summary>
+        public string SelectedSetsDisplay
+        {
+            get
+            {
+                if (_viewSheetSets == null || !_viewSheetSets.Any(s => s.IsSelected))
+                    return "All V/S Sets";
+                
+                var selectedNames = _viewSheetSets
+                    .Where(s => s.IsSelected)
+                    .Select(s => s.Name)
+                    .ToList();
+                    
+                if (selectedNames.Count == 1)
+                    return selectedNames[0];
+                else if (selectedNames.Count <= 3)
+                    return string.Join(", ", selectedNames);
+                else
+                    return $"{selectedNames.Count} sets selected";
+            }
+        }
 
         // Enhanced properties for data binding
         public int SelectedSheetsCount 
@@ -218,6 +257,11 @@ namespace ProSheetsAddin.Views
             LoadViews();
             UpdateFormatSelection();
             UpdateNavigationButtons();
+            
+            // Initialize View/Sheet Set Manager
+            _viewSheetSetManager = new ViewSheetSetManager(_document);
+            LoadViewSheetSets();
+            WriteDebugLog("ViewSheetSetManager initialized");
             
             WriteDebugLog("===== EXPORT + CONSTRUCTOR COMPLETED SUCCESSFULLY =====");
         }
@@ -1172,26 +1216,28 @@ Tiếp tục xuất file?";
 
         private void ViewSheetSetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            ComboBox combo = sender as ComboBox;
-            if (combo?.SelectedItem is ComboBoxItem item)
+            // Legacy method - no longer used with multi-select
+            // Kept for compatibility
+            WriteDebugLog("ViewSheetSetCombo_SelectionChanged called (legacy - multi-select now active)");
+        }
+        
+        private void ViewSheetSetCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("ViewSheetSet checkbox changed");
+            OnPropertyChanged(nameof(SelectedSetsDisplay));
+            
+            // Auto-apply filter if filter checkbox is checked
+            if (FilterByVSCheckBox?.IsChecked == true)
             {
-                WriteDebugLog($"View/Sheet Set changed to: {item.Content}");
-                // Auto-filter if checkbox is checked
-                if (FilterByVSCheckBox?.IsChecked == true)
-                {
-                    FilterSheetsBySet(item.Content.ToString());
-                }
+                ApplyMultiSetFilter();
             }
         }
 
         private void FilterByVSCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             WriteDebugLog("Filter by V/S checkbox checked - enabling filter");
-            // Apply filter based on current combo selection
-            if (ViewSheetSetCombo?.SelectedItem is ComboBoxItem item)
-            {
-                FilterSheetsBySet(item.Content.ToString());
-            }
+            // Apply multi-set filter
+            ApplyMultiSetFilter();
         }
 
         private void FilterByVSCheckBox_Unchecked(object sender, RoutedEventArgs e)
@@ -1201,22 +1247,285 @@ Tiếp tục xuất file?";
             ResetFilter_Click(sender, e);
         }
 
+        /// <summary>
+        /// Handle Save V/S Set button click - shows context menu
+        /// </summary>
+        private void SaveVSSetButton_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("SaveVSSetButton clicked - opening context menu");
+            
+            // Open context menu programmatically
+            if (sender is Button button && button.ContextMenu != null)
+            {
+                button.ContextMenu.PlacementTarget = button;
+                button.ContextMenu.IsOpen = true;
+            }
+        }
+        
+        /// <summary>
+        /// Create new View/Sheet Set
+        /// </summary>
+        private void NewVSSet_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("New V/S Set clicked");
+            SaveVSSet_Click(sender, e); // Call existing save logic
+        }
+        
+        /// <summary>
+        /// Add selected items to an existing View/Sheet Set
+        /// </summary>
+        private void AddToExistingVSSet_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Add to Existing V/S Set clicked");
+            
+            try
+            {
+                bool isSheetMode = SheetsRadio?.IsChecked == true;
+                
+                // Get selected items
+                List<ElementId> selectedIds;
+                int selectedCount;
+                
+                if (isSheetMode)
+                {
+                    selectedIds = Sheets?.Where(s => s.IsSelected).Select(s => s.Id).ToList();
+                    selectedCount = selectedIds?.Count ?? 0;
+                }
+                else
+                {
+                    selectedIds = Views?.Where(v => v.IsSelected).Select(v => v.RevitViewId).ToList();
+                    selectedCount = selectedIds?.Count ?? 0;
+                }
+                
+                if (selectedCount == 0)
+                {
+                    MessageBox.Show(
+                        $"Please select at least one {(isSheetMode ? "sheet" : "view")} to add to a set.",
+                        "No Selection",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+                
+                // Show dialog to select existing set
+                var dialog = new SelectExistingSetDialog(ViewSheetSets);
+                if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.SelectedSetName))
+                {
+                    WriteDebugLog($"Adding {selectedCount} items to set: {dialog.SelectedSetName}");
+                    
+                    bool success = _viewSheetSetManager.AddToExistingSet(dialog.SelectedSetName, selectedIds);
+                    
+                    if (success)
+                    {
+                        // Reload sets to update counts
+                        LoadViewSheetSets();
+                        
+                        MessageBox.Show(
+                            $"Added {selectedCount} {(isSheetMode ? "sheet" : "view")}{(selectedCount > 1 ? "s" : "")} to '{dialog.SelectedSetName}'.",
+                            "Success",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show(
+                            $"Failed to add items to '{dialog.SelectedSetName}'.",
+                            "Error",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR in AddToExistingVSSet: {ex.Message}");
+                MessageBox.Show(
+                    $"Error adding to existing set:\n\n{ex.Message}",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+        
+        /// <summary>
+        /// Delete a View/Sheet Set
+        /// </summary>
+        private void DeleteVSSet_Click(object sender, RoutedEventArgs e)
+        {
+            WriteDebugLog("Delete V/S Set clicked");
+            
+            try
+            {
+                // Get selected set(s)
+                var selectedSets = ViewSheetSets?.Where(s => s.IsSelected && !s.IsBuiltIn).ToList();
+                
+                if (selectedSets == null || !selectedSets.Any())
+                {
+                    MessageBox.Show(
+                        "Please select a View/Sheet Set from the dropdown to delete.\n\n" +
+                        "Note: Built-in sets (All Sheets, All Views) cannot be deleted.",
+                        "No Set Selected",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+                
+                // Show confirmation dialog
+                string setsToDelete = string.Join(", ", selectedSets.Select(s => s.Name));
+                var result = MessageBox.Show(
+                    $"Are you sure you want to delete the following View/Sheet Set(s)?\n\n{setsToDelete}\n\n" +
+                    "This action cannot be undone.",
+                    "Confirm Delete",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                    
+                if (result == MessageBoxResult.Yes)
+                {
+                    int deletedCount = 0;
+                    foreach (var set in selectedSets)
+                    {
+                        WriteDebugLog($"Deleting set: {set.Name}");
+                        if (_viewSheetSetManager.DeleteViewSheetSet(set.Name))
+                        {
+                            deletedCount++;
+                        }
+                    }
+                    
+                    // Reload sets
+                    LoadViewSheetSets();
+                    
+                    MessageBox.Show(
+                        $"Deleted {deletedCount} View/Sheet Set{(deletedCount > 1 ? "s" : "")} successfully.",
+                        "Success",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR in DeleteVSSet: {ex.Message}");
+                MessageBox.Show(
+                    $"Error deleting View/Sheet Set:\n\n{ex.Message}",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Original Save V/S Set logic (called by NewVSSet_Click)
+        /// </summary>
         private void SaveVSSet_Click(object sender, RoutedEventArgs e)
         {
             WriteDebugLog("Save View/Sheet Set clicked");
             
-            int count = 0;
-            if (SheetsRadio.IsChecked == true)
+            try
             {
-                count = Sheets?.Where(s => s.IsSelected).Count() ?? 0;
+                bool isSheetMode = SheetsRadio?.IsChecked == true;
+                int selectedCount = 0;
+                List<ElementId> selectedIds = new List<ElementId>();
+                
+                if (isSheetMode)
+                {
+                    var selectedSheets = Sheets?.Where(s => s.IsSelected).ToList();
+                    selectedCount = selectedSheets?.Count ?? 0;
+                    selectedIds = selectedSheets?.Select(s => s.Id).ToList() ?? new List<ElementId>();
+                }
+                else
+                {
+                    var selectedViews = Views?.Where(v => v.IsSelected).ToList();
+                    selectedCount = selectedViews?.Count ?? 0;
+                    selectedIds = selectedViews?.Select(v => v.RevitViewId).ToList() ?? new List<ElementId>();
+                }
+                
+                WriteDebugLog($"Selected {selectedCount} items for saving to View/Sheet Set");
+                
+                if (selectedCount == 0)
+                {
+                    MessageBox.Show(
+                        $"No {(isSheetMode ? "sheets" : "views")} selected.\n\n" +
+                        $"Please select at least one {(isSheetMode ? "sheet" : "view")} to save as a View/Sheet Set.",
+                        "No Selection",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+                
+                // Open Save dialog
+                var dialog = new SaveViewSheetSetDialog(selectedCount, isSheetMode);
+                dialog.Owner = this;
+                
+                if (dialog.ShowDialog() == true)
+                {
+                    string setName = dialog.SetName;
+                    WriteDebugLog($"User entered set name: {setName}");
+                    
+                    // Check if name already exists
+                    if (_viewSheetSetManager.SetNameExists(setName))
+                    {
+                        var result = MessageBox.Show(
+                            $"A View/Sheet Set named '{setName}' already exists.\n\n" +
+                            "Do you want to replace it?",
+                            "Set Already Exists",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question);
+                            
+                        if (result == MessageBoxResult.No)
+                            return;
+                            
+                        // Delete existing set
+                        _viewSheetSetManager.DeleteViewSheetSet(setName);
+                        WriteDebugLog($"Deleted existing set: {setName}");
+                    }
+                    
+                    // Create new ViewSheetSet
+                    try
+                    {
+                        var viewSheetSet = _viewSheetSetManager.CreateViewSheetSet(setName, selectedIds);
+                        
+                        if (viewSheetSet != null)
+                        {
+                            WriteDebugLog($"Successfully created ViewSheetSet: {setName}");
+                            
+                            // Reload the dropdown
+                            LoadViewSheetSets();
+                            
+                            // Auto-select the newly created set
+                            var newSet = ViewSheetSets?.FirstOrDefault(s => s.Name == setName);
+                            if (newSet != null)
+                            {
+                                newSet.IsSelected = true;
+                                OnPropertyChanged(nameof(SelectedSetsDisplay));
+                            }
+                            
+                            MessageBox.Show(
+                                $"View/Sheet Set '{setName}' saved successfully!\n\n" +
+                                $"Contains {selectedCount} {(isSheetMode ? "sheet" : "view")}{(selectedCount > 1 ? "s" : "")}.",
+                                "Success",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Information);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteDebugLog($"ERROR creating ViewSheetSet: {ex.Message}");
+                        MessageBox.Show(
+                            $"Failed to create View/Sheet Set:\n\n{ex.Message}",
+                            "Error",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    }
+                }
             }
-            else
+            catch (Exception ex)
             {
-                count = Views?.Where(v => v.IsSelected).Count() ?? 0;
+                WriteDebugLog($"ERROR in SaveVSSet_Click: {ex.Message}");
+                MessageBox.Show(
+                    $"An error occurred:\n\n{ex.Message}",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
-            
-            MessageBox.Show($"Save View/Sheet Set with {count} selected items", 
-                           "Save V/S Set", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -2185,26 +2494,8 @@ Tiếp tục xuất file?";
             WriteDebugLog("Filter by View/Sheet Set clicked");
             try
             {
-                if (ViewSheetSetCombo?.SelectedItem is ComboBoxItem selectedItem)
-                {
-                    string selectedSet = selectedItem.Content.ToString();
-                    WriteDebugLog($"Filtering by: {selectedSet}");
-                    
-                    if (selectedSet == "<None>")
-                    {
-                        // Show all items
-                        LoadSheets();
-                        LoadViews();
-                    }
-                    else
-                    {
-                        // Filter based on selected set
-                        FilterSheetsBySet(selectedSet);
-                    }
-                    
-                    MessageBox.Show($"Filtered by {selectedSet}", "Filter Applied", 
-                                   MessageBoxButton.OK, MessageBoxImage.Information);
-                }
+                // No longer used - multi-select handles filtering automatically
+                WriteDebugLog("Legacy FilterByVSSet_Click - multi-select now active");
             }
             catch (Exception ex)
             {
@@ -2218,10 +2509,14 @@ Tiếp tục xuất file?";
             WriteDebugLog("Reset filter clicked");
             try
             {
-                // Reset ComboBox to <None>
-                if (ViewSheetSetCombo?.Items.Count > 0)
+                // Uncheck all set selections
+                if (ViewSheetSets != null)
                 {
-                    ViewSheetSetCombo.SelectedIndex = 0; // Select "<None>"
+                    foreach (var set in ViewSheetSets)
+                    {
+                        set.IsSelected = false;
+                    }
+                    OnPropertyChanged(nameof(SelectedSetsDisplay));
                 }
                 
                 // Reload all data
@@ -2301,12 +2596,47 @@ Tiếp tục xuất file?";
                     
                     WriteDebugLog($"Applying custom filename to ALL {allSheets.Count} sheets");
                     
-                    // Open CustomFileNameDialog
-                    var dialog = new CustomFileNameDialog(_document);
+                    // Load existing configuration from current profile
+                    List<Models.SelectedParameterInfo> existingConfig = null;
+                    if (_profileManager?.CurrentProfile?.Settings != null)
+                    {
+                        var configJson = _profileManager.CurrentProfile.Settings.CustomFileNameConfigJson;
+                        if (!string.IsNullOrEmpty(configJson))
+                        {
+                            try
+                            {
+                                existingConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Models.SelectedParameterInfo>>(configJson);
+                                WriteDebugLog($"Loaded existing custom file name configuration with {existingConfig?.Count ?? 0} parameters");
+                            }
+                            catch (Exception jsonEx)
+                            {
+                                WriteDebugLog($"ERROR deserializing custom file name config: {jsonEx.Message}");
+                            }
+                        }
+                    }
+                    
+                    // Open CustomFileNameDialog with existing configuration
+                    var dialog = new CustomFileNameDialog(_document, existingConfig);
                     dialog.Owner = this;
                     
                     if (dialog.ShowDialog() == true)
                     {
+                        // Save configuration to profile
+                        if (_profileManager?.CurrentProfile?.Settings != null)
+                        {
+                            try
+                            {
+                                var configJson = Newtonsoft.Json.JsonConvert.SerializeObject(dialog.SelectedParameters);
+                                _profileManager.CurrentProfile.Settings.CustomFileNameConfigJson = configJson;
+                                _profileManager.SaveProfile(_profileManager.CurrentProfile);
+                                WriteDebugLog($"Saved custom file name configuration to profile ({dialog.SelectedParameters.Count} parameters)");
+                            }
+                            catch (Exception saveEx)
+                            {
+                                WriteDebugLog($"ERROR saving custom file name config to profile: {saveEx.Message}");
+                            }
+                        }
+                        
                         // Apply custom file name configuration to ALL sheets
                         int updatedCount = ApplyCustomFileNameToSheets(allSheets, dialog.SelectedParameters);
                         
@@ -2334,12 +2664,47 @@ Tiếp tục xuất file?";
                     
                     WriteDebugLog($"Applying custom filename to ALL {allViews.Count} views");
                     
-                    // Open CustomFileNameDialog
-                    var dialog = new CustomFileNameDialog(_document);
+                    // Load existing configuration from current profile
+                    List<Models.SelectedParameterInfo> existingConfig = null;
+                    if (_profileManager?.CurrentProfile?.Settings != null)
+                    {
+                        var configJson = _profileManager.CurrentProfile.Settings.CustomFileNameConfigJson;
+                        if (!string.IsNullOrEmpty(configJson))
+                        {
+                            try
+                            {
+                                existingConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<List<Models.SelectedParameterInfo>>(configJson);
+                                WriteDebugLog($"Loaded existing custom file name configuration with {existingConfig?.Count ?? 0} parameters");
+                            }
+                            catch (Exception jsonEx)
+                            {
+                                WriteDebugLog($"ERROR deserializing custom file name config: {jsonEx.Message}");
+                            }
+                        }
+                    }
+                    
+                    // Open CustomFileNameDialog with existing configuration
+                    var dialog = new CustomFileNameDialog(_document, existingConfig);
                     dialog.Owner = this;
                     
                     if (dialog.ShowDialog() == true)
                     {
+                        // Save configuration to profile
+                        if (_profileManager?.CurrentProfile?.Settings != null)
+                        {
+                            try
+                            {
+                                var configJson = Newtonsoft.Json.JsonConvert.SerializeObject(dialog.SelectedParameters);
+                                _profileManager.CurrentProfile.Settings.CustomFileNameConfigJson = configJson;
+                                _profileManager.SaveProfile(_profileManager.CurrentProfile);
+                                WriteDebugLog($"Saved custom file name configuration to profile ({dialog.SelectedParameters.Count} parameters)");
+                            }
+                            catch (Exception saveEx)
+                            {
+                                WriteDebugLog($"ERROR saving custom file name config to profile: {saveEx.Message}");
+                            }
+                        }
+                        
                         // Apply custom file name configuration to ALL views
                         int updatedCount = ApplyCustomFileNameToViews(allViews, dialog.SelectedParameters);
                         

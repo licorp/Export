@@ -18,6 +18,14 @@
         <!-- Converters -->
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         
+        <!-- Drop Shadow Effect for Popups -->
+        <DropShadowEffect x:Key="DropShadowEffect" 
+                          Color="Black" 
+                          Direction="270" 
+                          ShadowDepth="2" 
+                          BlurRadius="8" 
+                          Opacity="0.3"/>
+        
         <!-- Professional Button Styles -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#2196F3"/>
@@ -241,7 +249,7 @@
                             <TextBlock Grid.Column="1" Text="View/Sheet Set" VerticalAlignment="Center" 
                                        Margin="0,0,8,0" FontSize="12"/>
 
-                            <!-- Filter Checkbox + Dropdown -->
+                            <!-- Filter Checkbox + Multi-Select Dropdown -->
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                                 <CheckBox x:Name="FilterByVSCheckBox" 
                                          VerticalAlignment="Center"
@@ -250,25 +258,101 @@
                                          Unchecked="FilterByVSCheckBox_Unchecked"
                                          ToolTip="Enable filtering by View/Sheet Set"/>
                                 
-                                <ComboBox x:Name="ViewSheetSetCombo" Width="140" Height="24" 
-                                          SelectionChanged="ViewSheetSetCombo_SelectionChanged"
-                                          BorderBrush="#CCCCCC" BorderThickness="1" Background="White"
-                                          Padding="6,2" FontSize="12">
-                                    <ComboBoxItem Content="Filter by V/S Sets" IsSelected="True"/>
-                                    <ComboBoxItem Content="All Sheets"/>
-                                    <ComboBoxItem Content="Architectural"/>
-                                    <ComboBoxItem Content="Structural"/>
-                                    <ComboBoxItem Content="MEP"/>
-                                    <ComboBoxItem Content="Site"/>
-                                </ComboBox>
+                                <!-- Multi-Select ToggleButton with Popup -->
+                                <ToggleButton x:Name="ViewSheetSetToggle" 
+                                             Width="180" Height="24"
+                                             BorderBrush="#CCCCCC" BorderThickness="1" 
+                                             Background="White"
+                                             HorizontalContentAlignment="Left"
+                                             Padding="6,2">
+                                    <ToggleButton.Content>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" 
+                                                      Text="{Binding SelectedSetsDisplay, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                      TextTrimming="CharacterEllipsis"
+                                                      VerticalAlignment="Center"
+                                                      FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="▼" 
+                                                      VerticalAlignment="Center" 
+                                                      Margin="4,0,0,0"
+                                                      FontSize="10"/>
+                                        </Grid>
+                                    </ToggleButton.Content>
+                                </ToggleButton>
+                                
+                                <!-- Popup with CheckBoxes -->
+                                <Popup x:Name="ViewSheetSetPopup"
+                                       PlacementTarget="{Binding ElementName=ViewSheetSetToggle}"
+                                       Placement="Bottom"
+                                       StaysOpen="False"
+                                       IsOpen="{Binding ElementName=ViewSheetSetToggle, Path=IsChecked}"
+                                       Width="{Binding ElementName=ViewSheetSetToggle, Path=ActualWidth}">
+                                    <Border Background="White" 
+                                            BorderBrush="#CCCCCC" 
+                                            BorderThickness="1"
+                                            Padding="5"
+                                            Effect="{StaticResource DropShadowEffect}">
+                                        <ScrollViewer MaxHeight="200" 
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl x:Name="ViewSheetSetItems">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox Content="{Binding DisplayName}"
+                                                                 IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                 Margin="0,2"
+                                                                 FontSize="12"
+                                                                 Checked="ViewSheetSetCheckBox_Changed"
+                                                                 Unchecked="ViewSheetSetCheckBox_Changed"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
                             </StackPanel>
 
                             <!-- Save V/S Set Button -->
-                            <Button Grid.Column="3" Content="Save V/S Set" Width="90" Height="24" 
+                            <!-- Save V/S Set Button with Dropdown Menu -->
+                            <Button Grid.Column="3" x:Name="SaveVSSetButton" Width="110" Height="24" 
                                     Margin="0,0,10,0" FontSize="12"
                                     Background="White" BorderBrush="#CCCCCC" BorderThickness="1"
-                                    Click="SaveVSSet_Click"
+                                    Click="SaveVSSetButton_Click"
                                     ToolTip="Save current selection as View/Sheet Set">
+                                <Button.Content>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Save V/S Set" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock Grid.Column="1" Text="▼" VerticalAlignment="Center" FontSize="10"/>
+                                    </Grid>
+                                </Button.Content>
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="New Set" Click="NewVSSet_Click">
+                                            <MenuItem.Icon>
+                                                <TextBlock Text="+" FontWeight="Bold" FontSize="14"/>
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Header="Add to Existing" Click="AddToExistingVSSet_Click">
+                                            <MenuItem.Icon>
+                                                <TextBlock Text="📁" FontSize="12"/>
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <Separator/>
+                                        <MenuItem Header="Delete Set" Click="DeleteVSSet_Click" x:Name="DeleteSetMenuItem">
+                                            <MenuItem.Icon>
+                                                <TextBlock Text="🗑" FontSize="12"/>
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="{TemplateBinding Background}"

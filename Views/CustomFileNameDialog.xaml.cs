@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -48,7 +49,7 @@ namespace ProSheetsAddin.Views
             set { _previewText = value; OnPropertyChanged(); }
         }
 
-        public CustomFileNameDialog(Document document = null)
+        public CustomFileNameDialog(Document document = null, List<SelectedParameterInfo> existingConfig = null)
         {
             try
             {
@@ -57,7 +58,17 @@ namespace ProSheetsAddin.Views
                 _document = document;
                 
                 LoadAvailableParameters();
-                LoadDefaultConfiguration();
+                
+                // Load existing configuration or default
+                if (existingConfig != null && existingConfig.Any())
+                {
+                    LoadExistingConfiguration(existingConfig);
+                }
+                else
+                {
+                    LoadDefaultConfiguration();
+                }
+                
                 UpdatePreview();
                 
                 // Subscribe to preview changes
@@ -255,6 +266,32 @@ namespace ProSheetsAddin.Views
             {
                 param.PreviewChanged += UpdatePreview;
                 _selectedParameters.Add(param);
+            }
+        }
+        
+        /// <summary>
+        /// Load existing configuration from profile
+        /// </summary>
+        private void LoadExistingConfiguration(List<SelectedParameterInfo> existingConfig)
+        {
+            System.Diagnostics.Debug.WriteLine($"Loading existing configuration with {existingConfig.Count} parameters");
+            
+            foreach (var param in existingConfig)
+            {
+                // Create new instance to avoid reference issues
+                var paramCopy = new SelectedParameterInfo
+                {
+                    ParameterName = param.ParameterName,
+                    Prefix = param.Prefix ?? "",
+                    Suffix = param.Suffix ?? "",
+                    Separator = param.Separator ?? "-",
+                    SampleValue = param.SampleValue ?? ""
+                };
+                
+                paramCopy.PreviewChanged += UpdatePreview;
+                _selectedParameters.Add(paramCopy);
+                
+                System.Diagnostics.Debug.WriteLine($"Loaded parameter: {param.ParameterName}, Separator: '{param.Separator}'");
             }
         }
 

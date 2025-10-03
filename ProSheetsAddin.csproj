@@ -73,6 +73,7 @@
     <Compile Include="Models\SheetItem.cs" />
     <Compile Include="Models\ViewItem.cs" />
     <Compile Include="Models\ProSheetsProfile.cs" />
+    <Compile Include="Models\ViewSheetSetInfo.cs" />
     <Compile Include="Managers\XMLProfileManager.cs" />
     <Compile Include="Views\Converters.cs" />
     <Compile Include="Converters\UIConverters.cs" />
@@ -90,6 +91,7 @@
     <Compile Include="Managers\PDFExportManager.cs" />
     <Compile Include="Managers\PDFExportManager_PrintManager.cs" />
     <Compile Include="Managers\ProSheetsProfileManager.cs" />
+    <Compile Include="Managers\ViewSheetSetManager.cs" />
     <Compile Include="Services\PDFOptionsApplier.cs" />
     <Compile Include="Models\ExportQueueItem.cs" />
     <Compile Include="Models\ParameterInfo.cs" />
@@ -111,6 +113,13 @@
       <DependentUpon>ProSheetsMainWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\ProSheetsMainWindow.Profiles.cs" />
+    <Compile Include="Views\ProSheetsMainWindow.ViewSheetSets.cs" />
+    <Compile Include="Views\SaveViewSheetSetDialog.xaml.cs">
+      <DependentUpon>SaveViewSheetSetDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SelectExistingSetDialog.xaml.cs">
+      <DependentUpon>SelectExistingSetDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
 
@@ -128,6 +137,14 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\ProSheetsMainWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\SaveViewSheetSetDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\SelectExistingSetDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

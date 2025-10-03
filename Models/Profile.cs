@@ -128,6 +128,9 @@ namespace ProSheetsAddin.Models
         // Custom File Name Settings
         public List<string> CustomFileNameParameters { get; set; } = new List<string>();
         public string CustomFileNamePreview { get; set; } = "";
+        
+        // Custom File Name Configuration (detailed)
+        public string CustomFileNameConfigJson { get; set; } = "";  // Serialized SelectedParameterInfo list
 
         // Create Settings
         public string OutputFolder { get; set; } = @"D:\OneDrive\Desktop\";
