@@ -2289,15 +2289,17 @@ Tiếp tục xuất file?";
                 
                 if (isSheetMode)
                 {
-                    // Get selected sheets
-                    var selectedSheets = Sheets?.Where(s => s.IsSelected).ToList();
+                    // Get ALL sheets (not just selected)
+                    var allSheets = Sheets?.ToList();
                     
-                    if (selectedSheets == null || !selectedSheets.Any())
+                    if (allSheets == null || !allSheets.Any())
                     {
-                        MessageBox.Show("Please select at least one sheet first.", "No Selection", 
+                        MessageBox.Show("No sheets available.", "No Sheets", 
                                        MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
+                    
+                    WriteDebugLog($"Applying custom filename to ALL {allSheets.Count} sheets");
                     
                     // Open CustomFileNameDialog
                     var dialog = new CustomFileNameDialog(_document);
@@ -2305,8 +2307,8 @@ Tiếp tục xuất file?";
                     
                     if (dialog.ShowDialog() == true)
                     {
-                        // Apply custom file name configuration to selected sheets
-                        int updatedCount = ApplyCustomFileNameToSheets(selectedSheets, dialog.SelectedParameters);
+                        // Apply custom file name configuration to ALL sheets
+                        int updatedCount = ApplyCustomFileNameToSheets(allSheets, dialog.SelectedParameters);
                         
                         WriteDebugLog($"Updated {updatedCount} sheets with custom filename configuration");
                         
@@ -2314,21 +2316,23 @@ Tiếp tục xuất file?";
                         UpdateExportQueue();
                         WriteDebugLog("Export Queue refreshed with updated custom file names");
                         
-                        MessageBox.Show($"Successfully applied custom filename to {updatedCount} sheet(s).", 
+                        MessageBox.Show($"Successfully applied custom filename to ALL {updatedCount} sheet(s).", 
                                        "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 }
                 else
                 {
-                    // Get selected views
-                    var selectedViews = Views?.Where(v => v.IsSelected).ToList();
+                    // Get ALL views (not just selected)
+                    var allViews = Views?.ToList();
                     
-                    if (selectedViews == null || !selectedViews.Any())
+                    if (allViews == null || !allViews.Any())
                     {
-                        MessageBox.Show("Please select at least one view first.", "No Selection", 
+                        MessageBox.Show("No views available.", "No Views", 
                                        MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
+                    
+                    WriteDebugLog($"Applying custom filename to ALL {allViews.Count} views");
                     
                     // Open CustomFileNameDialog
                     var dialog = new CustomFileNameDialog(_document);
@@ -2336,8 +2340,8 @@ Tiếp tục xuất file?";
                     
                     if (dialog.ShowDialog() == true)
                     {
-                        // Apply custom file name configuration to selected views
-                        int updatedCount = ApplyCustomFileNameToViews(selectedViews, dialog.SelectedParameters);
+                        // Apply custom file name configuration to ALL views
+                        int updatedCount = ApplyCustomFileNameToViews(allViews, dialog.SelectedParameters);
                         
                         WriteDebugLog($"Updated {updatedCount} views with custom filename configuration");
                         
@@ -2345,7 +2349,7 @@ Tiếp tục xuất file?";
                         UpdateExportQueue();
                         WriteDebugLog("Export Queue refreshed with updated custom file names");
                         
-                        MessageBox.Show($"Successfully applied custom filename to {updatedCount} view(s).", 
+                        MessageBox.Show($"Successfully applied custom filename to ALL {updatedCount} view(s).", 
                                        "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 }
