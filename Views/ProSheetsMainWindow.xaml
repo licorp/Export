@@ -1069,48 +1069,81 @@
                                         <GroupBox Header="Standard options" Grid.Column="0" Margin="0,0,10,0" 
                                                   BorderBrush="#E1E1E1" BorderThickness="1">
                                             <StackPanel Margin="10">
-                                                <CheckBox Content="Convert construction parts" IsChecked="True" 
+                                                <CheckBox Content="Convert construction parts" 
+                                                          IsChecked="{Binding NWCSettings.ConvertConstructionParts}"
                                                           Margin="0,0,0,8" FontSize="13"/>
-                                                <CheckBox Content="Convert element Ids" IsChecked="True" 
+                                                <CheckBox Content="Convert element Ids" 
+                                                          IsChecked="{Binding NWCSettings.ConvertElementIds}"
                                                           Margin="0,0,0,8" FontSize="13"/>
                                                 
                                                 <!-- Convert element parameters -->
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                     <TextBlock Text="Convert element parameters" VerticalAlignment="Center" 
                                                                Width="180" FontSize="13"/>
-                                                    <ComboBox x:Name="ElementParamsCombo" Width="120" FontSize="13">
-                                                        <ComboBoxItem Content="Elements" IsSelected="True"/>
-                                                        <ComboBoxItem Content="Instances"/>
-                                                        <ComboBoxItem Content="Types"/>
+                                                    <ComboBox Width="120" FontSize="13"
+                                                              SelectedItem="{Binding NWCSettings.ConvertElementParameters}">
+                                                        <ComboBoxItem Content="None"/>
+                                                        <ComboBoxItem Content="Elements"/>
+                                                        <ComboBoxItem Content="All" IsSelected="True"/>
                                                     </ComboBox>
                                                 </StackPanel>
 
-                                                <CheckBox Content="Convert element properties" IsChecked="True" 
+                                                <CheckBox Content="Convert element properties" 
+                                                          IsChecked="{Binding NWCSettings.ConvertElementProperties}"
                                                           Margin="0,0,0,8" FontSize="13"/>
                                                 <CheckBox Content="Convert linked files" 
+                                                          IsChecked="{Binding NWCSettings.ConvertLinkedFiles}"
                                                           Margin="0,0,0,8" FontSize="13"/>
-                                                <CheckBox Content="Convert room as attribute" IsChecked="True" 
+                                                <CheckBox Content="Convert room as attribute" 
+                                                          IsChecked="{Binding NWCSettings.ConvertRoomAsAttribute}"
                                                           Margin="0,0,0,8" FontSize="13"/>
-                                                <CheckBox Content="Convert URLs" IsChecked="True" 
+                                                <CheckBox Content="Convert URLs" 
+                                                          IsChecked="{Binding NWCSettings.ConvertURLs}"
                                                           Margin="0,0,0,8" FontSize="13"/>
 
                                                 <!-- Coordinates -->
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                     <TextBlock Text="Coordinates" VerticalAlignment="Center" 
                                                                Width="180" FontSize="13"/>
-                                                    <ComboBox x:Name="CoordinatesCombo" Width="120" FontSize="13">
+                                                    <ComboBox Width="120" FontSize="13"
+                                                              SelectedItem="{Binding NWCSettings.Coordinates}">
                                                         <ComboBoxItem Content="Shared" IsSelected="True"/>
-                                                        <ComboBoxItem Content="Internal"/>
-                                                        <ComboBoxItem Content="Project Base"/>
-                                                        <ComboBoxItem Content="Survey"/>
+                                                        <ComboBoxItem Content="Project Internal"/>
                                                     </ComboBox>
                                                 </StackPanel>
 
-                                                <CheckBox Content="Divide file into levels" IsChecked="True" 
+                                                <CheckBox Content="Divide file into levels" 
+                                                          IsChecked="{Binding NWCSettings.DivideFileIntoLevels}"
                                                           Margin="0,0,0,8" FontSize="13"/>
+                                                <CheckBox Content="Embed Textures" 
+                                                          IsChecked="{Binding NWCSettings.EmbedTextures}"
+                                                          Margin="0,0,0,8" FontSize="13"/>
+                                                
+                                                <!-- Export scope -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <TextBlock Text="Export" VerticalAlignment="Center" 
+                                                               Width="180" FontSize="13"/>
+                                                    <ComboBox Width="120" FontSize="13"
+                                                              SelectedValue="{Binding NWCSettings.ExportScope}">
+                                                        <ComboBoxItem Content="Current view" IsSelected="True"/>
+                                                        <ComboBoxItem Content="Model"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                
                                                 <CheckBox Content="Export room geometry" 
+                                                          IsChecked="{Binding NWCSettings.ExportRoomGeometry}"
                                                           Margin="0,0,0,8" FontSize="13"/>
-                                                <CheckBox Content="Try and find missing materials" IsChecked="True" 
+                                                <CheckBox Content="Separate Custom properties" 
+                                                          IsChecked="{Binding NWCSettings.SeparateCustomProperties}"
+                                                          Margin="0,0,0,8" FontSize="13"/>
+                                                <CheckBox Content="Strict Sectioning" 
+                                                          IsChecked="{Binding NWCSettings.StrictSectioning}"
+                                                          Margin="0,0,0,8" FontSize="13"/>
+                                                <CheckBox Content="Try and find missing materials" 
+                                                          IsChecked="{Binding NWCSettings.TryAndFindMissingMaterials}"
+                                                          Margin="0,0,0,8" FontSize="13"/>
+                                                <CheckBox Content="Type properties on Elements" 
+                                                          IsChecked="{Binding NWCSettings.TypePropertiesOnElements}"
                                                           FontSize="13"/>
                                             </StackPanel>
                                         </GroupBox>
@@ -1120,16 +1153,19 @@
                                                   BorderBrush="#E1E1E1" BorderThickness="1">
                                             <StackPanel Margin="10">
                                                 <CheckBox Content="Convert linked CAD format" 
+                                                          IsChecked="{Binding NWCSettings.ConvertLinkedCADFormats}"
                                                           Margin="0,0,0,8" FontSize="13"/>
                                                 <CheckBox Content="Convert lights" 
+                                                          IsChecked="{Binding NWCSettings.ConvertLights}"
                                                           Margin="0,0,0,15" FontSize="13"/>
 
                                                 <!-- Faceting factor -->
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="Faceting factor" VerticalAlignment="Center" 
                                                                Width="120" FontSize="13"/>
-                                                    <TextBox x:Name="FacetingFactorBox" Width="80" Height="25" 
-                                                             Text="1" VerticalContentAlignment="Center" 
+                                                    <TextBox Width="80" Height="25" 
+                                                             Text="{Binding NWCSettings.FacetingFactor}"
+                                                             VerticalContentAlignment="Center" 
                                                              HorizontalContentAlignment="Right" FontSize="13"/>
                                                 </StackPanel>
                                             </StackPanel>

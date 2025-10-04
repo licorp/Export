@@ -20,32 +20,42 @@ namespace ProSheetsAddin.Managers
         }
 
         /// <summary>
-        /// Export 3D views to Navisworks Cache (NWC) format
+        /// Export 3D views to Navisworks Cache (NWC) format with custom settings
         /// </summary>
-        public bool ExportToNavisworks(List<ViewItem> selectedViews, string outputFolder, string fileNamePrefix = "")
+        public bool ExportToNavisworks(List<ViewItem> selectedViews, NWCExportSettings settings, string outputFolder, string fileNamePrefix = "")
         {
             try
             {
                 if (selectedViews == null || !selectedViews.Any())
                 {
-                    throw new ArgumentException("No views selected for Navisworks export");
+                    System.Diagnostics.Debug.WriteLine("No views selected for Navisworks export");
+                    return false;
                 }
 
-                if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder))
+                if (string.IsNullOrEmpty(outputFolder))
                 {
-                    throw new ArgumentException("Invalid output folder");
+                    System.Diagnostics.Debug.WriteLine("Invalid output folder");
+                    return false;
+                }
+
+                if (!Directory.Exists(outputFolder))
+                {
+                    Directory.CreateDirectory(outputFolder);
                 }
 
                 // Filter only 3D views for Navisworks export
-                var threeDViews = selectedViews.Where(v => v.ViewType.Contains("ThreeD") || v.ViewType.Contains("3D")).ToList();
+                var threeDViews = selectedViews.Where(v => 
+                    v.ViewType != null && 
+                    (v.ViewType.Contains("ThreeD") || v.ViewType.Contains("3D"))).ToList();
                 
                 if (!threeDViews.Any())
                 {
-                    // If no 3D views, try to create a simple model export
-                    return ExportModelToNavisworks(outputFolder, fileNamePrefix);
+                    System.Diagnostics.Debug.WriteLine("No 3D views found. Creating default 3D export.");
+                    return ExportModelToNavisworks(settings, outputFolder, fileNamePrefix);
                 }
 
                 int exportedCount = 0;
+
                 foreach (var viewItem in threeDViews)
                 {
                     try
@@ -61,12 +71,10 @@ namespace ProSheetsAddin.Managers
                             fileName = CleanFileName(fileName);
                             string fullPath = Path.Combine(outputFolder, $"{fileName}.nwc");
 
-                            // Use Navisworks export options
-                            var options = new NavisworksExportOptions
-                            {
-                                ExportScope = NavisworksExportScope.View,
-                                ViewId = view.Id
-                            };
+                            // Create export options with settings
+                            var options = CreateNavisworksExportOptions(settings);
+                            options.ExportScope = NavisworksExportScope.View;
+                            options.ViewId = view.Id;
 
                             // Export to Navisworks
                             _document.Export(outputFolder, fileName, options);
@@ -90,9 +98,9 @@ namespace ProSheetsAddin.Managers
         }
 
         /// <summary>
-        /// Export entire model to Navisworks
+        /// Export entire model to Navisworks with settings
         /// </summary>
-        private bool ExportModelToNavisworks(string outputFolder, string fileNamePrefix)
+        private bool ExportModelToNavisworks(NWCExportSettings settings, string outputFolder, string fileNamePrefix)
         {
             try
             {
@@ -102,10 +110,8 @@ namespace ProSheetsAddin.Managers
                 
                 fileName = CleanFileName(fileName);
                 
-                var options = new NavisworksExportOptions
-                {
-                    ExportScope = NavisworksExportScope.Model
-                };
+                var options = CreateNavisworksExportOptions(settings);
+                options.ExportScope = NavisworksExportScope.Model;
 
                 _document.Export(outputFolder, fileName, options);
                 return true;
@@ -115,6 +121,90 @@ namespace ProSheetsAddin.Managers
                 System.Diagnostics.Debug.WriteLine($"Model export to Navisworks error: {ex.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Create NavisworksExportOptions from NWCExportSettings
+        /// </summary>
+        private NavisworksExportOptions CreateNavisworksExportOptions(NWCExportSettings settings)
+        {
+            var options = new NavisworksExportOptions();
+
+            try
+            {
+                // Set basic properties that are available in NavisworksExportOptions
+                options.ExportRoomGeometry = settings.ExportRoomGeometry;
+                options.DivideFileIntoLevels = settings.DivideFileIntoLevels;
+                options.ExportRoomAsAttribute = settings.ConvertRoomAsAttribute;
+                options.ExportLinks = settings.ConvertLinkedFiles;
+                options.ExportUrls = settings.ConvertURLs;
+                options.FindMissingMaterials = settings.TryAndFindMissingMaterials;
+                options.ConvertElementProperties = settings.ConvertElementProperties;
+
+                // Convert element parameters enum (None, Elements, All)
+                switch (settings.ConvertElementParameters)
+                {
+                    case "None":
+                        options.Parameters = NavisworksParameters.None;
+                        break;
+                    case "Elements":
+                        options.Parameters = NavisworksParameters.Elements;
+                        break;
+                    case "All":
+                    default:
+                        options.Parameters = NavisworksParameters.All;
+                        break;
+                }
+
+                // Convert coordinates enum (Shared, Project Internal)
+                switch (settings.Coordinates)
+                {
+                    case "Shared":
+                        options.Coordinates = NavisworksCoordinates.Shared;
+                        break;
+                    case "Project Internal":
+                    case "Internal":
+                    default:
+                        options.Coordinates = NavisworksCoordinates.Internal;
+                        break;
+                }
+
+                // Apply Revit 2020+ settings using reflection (for version compatibility)
+                try
+                {
+                    var type = options.GetType();
+                    
+                    // Convert lights (Revit 2020+)
+                    var convertLightsProperty = type.GetProperty("ConvertLights");
+                    if (convertLightsProperty != null && convertLightsProperty.CanWrite)
+                        convertLightsProperty.SetValue(options, settings.ConvertLights);
+                    
+                    // Convert linked CAD formats (Revit 2020+)
+                    var convertLinkedCADProperty = type.GetProperty("ConvertLinkedCADFormats");
+                    if (convertLinkedCADProperty != null && convertLinkedCADProperty.CanWrite)
+                        convertLinkedCADProperty.SetValue(options, settings.ConvertLinkedCADFormats);
+                    
+                    // Faceting factor (Revit 2020+)
+                    var facetingFactorProperty = type.GetProperty("FacetingFactor");
+                    if (facetingFactorProperty != null && facetingFactorProperty.CanWrite)
+                        facetingFactorProperty.SetValue(options, settings.FacetingFactor);
+                    
+                    // Convert element IDs
+                    var convertElementIdsProperty = type.GetProperty("ConvertElementId");
+                    if (convertElementIdsProperty != null && convertElementIdsProperty.CanWrite)
+                        convertElementIdsProperty.SetValue(options, settings.ConvertElementIds);
+                }
+                catch
+                {
+                    // Ignore if properties don't exist in this Revit version
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error creating Navisworks export options: {ex.Message}");
+            }
+
+            return options;
         }
 
         /// <summary>

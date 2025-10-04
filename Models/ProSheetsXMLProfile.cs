@@ -147,20 +147,78 @@ namespace ProSheetsAddin.Models
     
     public class NWCSettings
     {
-        public bool ConvertLights { get; set; }
-        public bool ConvertLinkedCADFormats { get; set; }
-        public double FacetingFactor { get; set; } = 1.0;
-        public bool ConvertElementProperties { get; set; } = true;
-        public string Coordinates { get; set; } = "Shared";
+        // Standard options
+        public bool ConvertConstructionParts { get; set; } = false;
+        public bool ConvertElementIds { get; set; } = true;
+        public string ConvertElementParameters { get; set; } = "All"; // None, Elements, All
+        public bool ConvertElementProperties { get; set; } = false;
+        public bool ConvertLinkedFiles { get; set; } = false;
+        public bool ConvertRoomAsAttribute { get; set; } = true;
+        public bool ConvertURLs { get; set; } = true;
+        public string Coordinates { get; set; } = "Shared"; // Shared, Project Internal
         public bool DivideFileIntoLevels { get; set; } = true;
-        public bool ExportElementIds { get; set; } = true;
-        public bool ExportLinks { get; set; }
-        public bool ExportParts { get; set; } = true;
-        public bool ExportRoomAsAttribute { get; set; } = true;
-        public bool ExportRoomGeometry { get; set; }
-        public bool ExportUrls { get; set; } = true;
-        public bool FindMissingMaterials { get; set; } = true;
-        public string Parameters { get; set; } = "Elements";
+        public bool EmbedTextures { get; set; } = true;
+        public string ExportScope { get; set; } = "Current view"; // Current view, Model
+        public bool ExportRoomGeometry { get; set; } = true;
+        public bool SeparateCustomProperties { get; set; } = true;
+        public bool StrictSectioning { get; set; } = false;
+        public bool TryAndFindMissingMaterials { get; set; } = true;
+        public bool TypePropertiesOnElements { get; set; } = false;
+        
+        // Revit 2020+ options
+        public bool ConvertLinkedCADFormats { get; set; } = true;
+        public bool ConvertLights { get; set; } = false;
+        public double FacetingFactor { get; set; } = 1.0;
+        
+        // Legacy property names for backward compatibility
+        [XmlElement("ExportElementIds")]
+        public bool ExportElementIds
+        {
+            get => ConvertElementIds;
+            set => ConvertElementIds = value;
+        }
+        
+        [XmlElement("ExportLinks")]
+        public bool ExportLinks
+        {
+            get => ConvertLinkedFiles;
+            set => ConvertLinkedFiles = value;
+        }
+        
+        [XmlElement("ExportParts")]
+        public bool ExportParts
+        {
+            get => ConvertConstructionParts;
+            set => ConvertConstructionParts = value;
+        }
+        
+        [XmlElement("ExportRoomAsAttribute")]
+        public bool ExportRoomAsAttribute
+        {
+            get => ConvertRoomAsAttribute;
+            set => ConvertRoomAsAttribute = value;
+        }
+        
+        [XmlElement("ExportUrls")]
+        public bool ExportUrls
+        {
+            get => ConvertURLs;
+            set => ConvertURLs = value;
+        }
+        
+        [XmlElement("FindMissingMaterials")]
+        public bool FindMissingMaterials
+        {
+            get => TryAndFindMissingMaterials;
+            set => TryAndFindMissingMaterials = value;
+        }
+        
+        [XmlElement("Parameters")]
+        public string Parameters
+        {
+            get => ConvertElementParameters;
+            set => ConvertElementParameters = value;
+        }
     }
 
     public class IFCSettings

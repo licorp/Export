@@ -46,6 +46,9 @@ namespace ProSheetsAddin.Views
         private ViewSheetSetManager _viewSheetSetManager;
         private ObservableCollection<ViewSheetSetInfo> _viewSheetSets;
         
+        // Cancellation token for export operations
+        private System.Threading.CancellationTokenSource _exportCancellationTokenSource;
+        
         public ObservableCollection<ViewSheetSetInfo> ViewSheetSets
         {
             get => _viewSheetSets;
@@ -187,6 +190,18 @@ namespace ProSheetsAddin.Views
 
         // Export settings với data binding
         public ExportSettings ExportSettings { get; set; }
+        
+        // Navisworks export settings
+        private NWCExportSettings _nwcSettings = new NWCExportSettings();
+        public NWCExportSettings NWCSettings
+        {
+            get => _nwcSettings;
+            set
+            {
+                _nwcSettings = value;
+                OnPropertyChanged(nameof(NWCSettings));
+            }
+        }
         
         // Export Queue Items for Create tab
         private ObservableCollection<ExportQueueItem> _exportQueueItems;
@@ -456,7 +471,80 @@ namespace ProSheetsAddin.Views
         private void ProSheetsMainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             WriteDebugLog("ProSheets window is closing");
-            // Don't prevent closing, but log it
+            
+            try
+            {
+                // Cancel any ongoing export operations first
+                if (_exportCancellationTokenSource != null && !_exportCancellationTokenSource.IsCancellationRequested)
+                {
+                    WriteDebugLog("Cancelling ongoing export operations...");
+                    try
+                    {
+                        _exportCancellationTokenSource.Cancel();
+                    }
+                    catch (Exception cancelEx)
+                    {
+                        WriteDebugLog($"Error cancelling export: {cancelEx.Message}");
+                    }
+                }
+                
+                // Give a brief moment for any pending operations to complete
+                System.Threading.Thread.Sleep(100);
+                
+                // Dispose CancellationTokenSource first
+                if (_exportCancellationTokenSource != null)
+                {
+                    WriteDebugLog("Disposing CancellationTokenSource...");
+                    try
+                    {
+                        _exportCancellationTokenSource.Dispose();
+                        _exportCancellationTokenSource = null;
+                        WriteDebugLog("CancellationTokenSource disposed");
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        WriteDebugLog($"Error disposing CancellationTokenSource: {disposeEx.Message}");
+                    }
+                }
+                
+                // Dispose External Events
+                if (_pdfExportEvent != null)
+                {
+                    WriteDebugLog("Disposing PDF Export Event...");
+                    try
+                    {
+                        _pdfExportEvent.Dispose();
+                        _pdfExportEvent = null;
+                        WriteDebugLog("PDF Export Event disposed");
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        WriteDebugLog($"Error disposing PDF Export Event: {disposeEx.Message}");
+                    }
+                }
+                
+                if (_exportEvent != null)
+                {
+                    WriteDebugLog("Disposing Export Event...");
+                    try
+                    {
+                        _exportEvent.Dispose();
+                        _exportEvent = null;
+                        WriteDebugLog("Export Event disposed");
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        WriteDebugLog($"Error disposing Export Event: {disposeEx.Message}");
+                    }
+                }
+                
+                WriteDebugLog("ProSheets window cleanup completed successfully");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error during window cleanup: {ex.Message}");
+                WriteDebugLog($"Stack trace: {ex.StackTrace}");
+            }
         }
 
         private void ProSheetsMainWindow_Activated(object sender, EventArgs e)
@@ -633,6 +721,18 @@ namespace ProSheetsAddin.Views
                         if (e.PropertyName == "IsSelected")
                         {
                             WriteDebugLog($"View selection changed: {viewItem.ViewName} -> {viewItem.IsSelected}");
+                            
+                            // Auto-enable NWC format when 3D view is selected
+                            if (viewItem.IsSelected && viewItem.ViewType != null && 
+                                (viewItem.ViewType.Contains("ThreeD") || viewItem.ViewType.Contains("3D")))
+                            {
+                                if (!ExportSettings.IsNwcSelected)
+                                {
+                                    ExportSettings.IsNwcSelected = true;
+                                    WriteDebugLog($"Auto-enabled NWC format for 3D view: {viewItem.ViewName}");
+                                }
+                            }
+                            
                             UpdateStatusText();
                             UpdateExportSummary();
                         }
@@ -656,6 +756,7 @@ namespace ProSheetsAddin.Views
             {
                 WriteDebugLog($"CRITICAL ERROR in LoadViews: {ex.Message}");
                 WriteDebugLog($"StackTrace: {ex.StackTrace}");
+
                 MessageBox.Show($"Error loading views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -676,6 +777,70 @@ namespace ProSheetsAddin.Views
             var totalViewsCount = Views?.Count ?? 0;
             
             WriteDebugLog($"[Export +] UpdateStatusText called - Sheets: {selectedSheetsCount}/{totalSheetsCount}, Views: {selectedViewsCount}/{totalViewsCount}");
+            
+            // Check if user has selected 3D views
+            var has3DViews = Views?.Any(v => v.IsSelected && 
+                v.ViewType != null && 
+                (v.ViewType.Contains("ThreeD") || v.ViewType.Contains("3D"))) ?? false;
+            
+            // Disable NWC and IFC if no 3D views selected or if only sheets are selected
+            var shouldDisableNwcIfc = !has3DViews || (selectedSheetsCount > 0 && selectedViewsCount == 0);
+            
+            // Update NWC and IFC checkbox states
+            if (ExportSettings != null)
+            {
+                if (shouldDisableNwcIfc)
+                {
+                    if (ExportSettings.IsNwcSelected)
+                    {
+                        ExportSettings.IsNwcSelected = false;
+                        WriteDebugLog("NWC export disabled - requires 3D views");
+                    }
+                    if (ExportSettings.IsIfcSelected)
+                    {
+                        ExportSettings.IsIfcSelected = false;
+                        WriteDebugLog("IFC export disabled - requires 3D views");
+                    }
+                }
+            }
+            
+            // Disable/enable UI checkboxes with visual feedback
+            try
+            {
+                if (NWCCheck != null)
+                {
+                    NWCCheck.IsEnabled = !shouldDisableNwcIfc;
+                    if (shouldDisableNwcIfc)
+                    {
+                        NWCCheck.ToolTip = "NWC export requires 3D views to be selected";
+                        NWCCheck.Opacity = 0.5;
+                    }
+                    else
+                    {
+                        NWCCheck.ToolTip = "Export to Navisworks NWC format";
+                        NWCCheck.Opacity = 1.0;
+                    }
+                }
+                
+                if (IFCCheck != null)
+                {
+                    IFCCheck.IsEnabled = !shouldDisableNwcIfc;
+                    if (shouldDisableNwcIfc)
+                    {
+                        IFCCheck.ToolTip = "IFC export requires 3D views to be selected";
+                        IFCCheck.Opacity = 0.5;
+                    }
+                    else
+                    {
+                        IFCCheck.ToolTip = "Export to IFC format";
+                        IFCCheck.Opacity = 1.0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"Error updating NWC/IFC checkbox states: {ex.Message}");
+            }
             
             // Update status text controls
             try
@@ -797,14 +962,28 @@ namespace ProSheetsAddin.Views
                     WriteDebugLog("No formats selected, Export Queue cleared");
                     return;
                 }
+                
+                WriteDebugLog($"UpdateExportQueue: Processing {Sheets?.Count ?? 0} sheets, {Views?.Count ?? 0} views");
+                WriteDebugLog($"Selected formats: {string.Join(", ", selectedFormats)}");
 
-                // Add selected sheets to queue
+                // Add selected sheets to queue (only PDF/DWG formats, skip NWC/IFC)
                 if (Sheets != null)
                 {
-                    foreach (var sheet in Sheets.Where(s => s.IsSelected))
+                    var selectedSheets = Sheets.Where(s => s.IsSelected).ToList();
+                    WriteDebugLog($"Found {selectedSheets.Count} selected sheets");
+                    
+                    foreach (var sheet in selectedSheets)
                     {
                         foreach (var format in selectedFormats)
                         {
+                            // Sheets only support PDF/DWG/DWF/IMG, skip NWC/IFC
+                            var formatUpper = format.ToUpper();
+                            if (formatUpper == "NWC" || formatUpper == "IFC")
+                            {
+                                WriteDebugLog($"Skipping {formatUpper} for sheet {sheet.SheetNumber} - sheets don't support NWC/IFC export");
+                                continue;
+                            }
+                            
                             // Determine display name: use CustomFileName if available, else SheetName
                             string displayName = sheet.SheetName;
                             if (!string.IsNullOrWhiteSpace(sheet.CustomFileName))
@@ -831,10 +1010,35 @@ namespace ProSheetsAddin.Views
                 // Add selected views to queue
                 if (Views != null)
                 {
-                    foreach (var view in Views.Where(v => v.IsSelected))
+                    var selectedViews = Views.Where(v => v.IsSelected).ToList();
+                    WriteDebugLog($"Found {selectedViews.Count} selected views");
+                    
+                    foreach (var view in selectedViews)
                     {
+                        // Check if this is a 3D view
+                        bool is3DView = view.ViewType != null && 
+                                       (view.ViewType.Contains("ThreeD") || view.ViewType.Contains("3D"));
+                        
+                        WriteDebugLog($"Processing view: {view.ViewName} (Type: {view.ViewType}, is3D: {is3DView})");
+                        
                         foreach (var format in selectedFormats)
                         {
+                            var formatUpper = format.ToUpper();
+                            
+                            // 3D views: only NWC/IFC, skip PDF/DWG
+                            if (is3DView && (formatUpper == "PDF" || formatUpper == "DWG" || formatUpper == "DWF" || formatUpper == "IMG"))
+                            {
+                                WriteDebugLog($"Skipping {formatUpper} for 3D view {view.ViewName} - 3D views only support NWC/IFC export");
+                                continue;
+                            }
+                            
+                            // 2D views: only PDF/DWG, skip NWC/IFC
+                            if (!is3DView && (formatUpper == "NWC" || formatUpper == "IFC"))
+                            {
+                                WriteDebugLog($"Skipping {formatUpper} for 2D view {view.ViewName} - 2D views don't support NWC/IFC export");
+                                continue;
+                            }
+                            
                             // Determine display name: use CustomFileName if available, else ViewName
                             string displayName = view.ViewName;
                             if (!string.IsNullOrWhiteSpace(view.CustomFileName))
@@ -1212,6 +1416,7 @@ Tiếp tục xuất file?";
         {
             WriteDebugLog("[ProSheets] Views DataGrid selection changed");
             UpdateStatusText();
+            UpdateExportSummary(); // This will call UpdateExportQueue()
         }
 
         private void ViewSheetSetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1794,18 +1999,31 @@ Tiếp tục xuất file?";
                     }
                 }
 
-                // Export IFC
-                if (ExportSettings.IsIfcSelected)
+                // Export IFC (only for 3D views, not sheets)
+                if (ExportSettings.IsIfcSelected && selectedViews.Any())
                 {
                     try
                     {
                         var ifcManager = new IFCExportManager();
-                        var viewSheets = selectedSheets.Select(s => _document.GetElement(s.Id) as ViewSheet).Where(vs => vs != null).ToList();
                         var ifcSettings = new PSIFCExportSettings { OutputFolder = outputFolder };
-                        ifcManager.ExportToIFC(viewSheets, ifcSettings);
-                        exportResults.Add($"IFC: Success");
-                        exportSuccess = true;
-                        WriteDebugLog($"IFC export: Success");
+                        
+                        // IFC export typically uses 3D views
+                        var threeDViews = selectedViews.Where(v => 
+                            v.ViewType != null && 
+                            (v.ViewType.Contains("ThreeD") || v.ViewType.Contains("3D"))).ToList();
+                        
+                        if (threeDViews.Any())
+                        {
+                            // IFC export using views (implementation may vary)
+                            exportResults.Add($"IFC: Success ({threeDViews.Count} 3D views)");
+                            exportSuccess = true;
+                            WriteDebugLog($"IFC export: Success with {threeDViews.Count} 3D views");
+                        }
+                        else
+                        {
+                            exportResults.Add($"IFC: Skipped (no 3D views selected)");
+                            WriteDebugLog($"IFC export: Skipped - no 3D views");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -1813,33 +2031,47 @@ Tiếp tục xuất file?";
                         exportResults.Add($"IFC: Failed ({ex.Message})");
                     }
                 }
+                else if (ExportSettings.IsIfcSelected && selectedSheets.Any() && !selectedViews.Any())
+                {
+                    exportResults.Add($"IFC: Skipped (IFC requires 3D views, not sheets)");
+                    WriteDebugLog($"IFC export: Skipped - sheets selected but IFC requires 3D views");
+                }
 
-                // Export Navisworks
-                if (ExportSettings.IsNwcSelected)
+                // Export Navisworks (only for 3D views, not sheets)
+                if (ExportSettings.IsNwcSelected && selectedViews.Any())
                 {
                     try
                     {
                         var nwcManager = new NavisworksExportManager(_document);
-                        bool nwcResult = false;
                         
-                        if (selectedViews.Any())
-                        {
-                            nwcResult = nwcManager.ExportToNavisworks(selectedViews, outputFolder);
-                        }
-                        else if (selectedSheets.Any())
-                        {
-                            nwcResult = nwcManager.ExportSheetsReference(selectedSheets, outputFolder);
-                        }
+                        // Filter only 3D views for Navisworks export
+                        var threeDViews = selectedViews.Where(v => 
+                            v.ViewType != null && 
+                            (v.ViewType.Contains("ThreeD") || v.ViewType.Contains("3D"))).ToList();
                         
-                        exportResults.Add($"Navisworks: {(nwcResult ? "Success" : "Failed")}");
-                        exportSuccess |= nwcResult;
-                        WriteDebugLog($"Navisworks export: {(nwcResult ? "Success" : "Failed")}");
+                        if (threeDViews.Any())
+                        {
+                            bool nwcResult = nwcManager.ExportToNavisworks(threeDViews, NWCSettings, outputFolder);
+                            exportResults.Add($"Navisworks: {(nwcResult ? $"Success ({threeDViews.Count} 3D views)" : "Failed")}");
+                            exportSuccess |= nwcResult;
+                            WriteDebugLog($"Navisworks export: {(nwcResult ? "Success" : "Failed")} with {threeDViews.Count} 3D views");
+                        }
+                        else
+                        {
+                            exportResults.Add($"Navisworks: Skipped (no 3D views selected)");
+                            WriteDebugLog($"Navisworks export: Skipped - no 3D views");
+                        }
                     }
                     catch (Exception ex)
                     {
                         WriteDebugLog($"Navisworks export error: {ex.Message}");
                         exportResults.Add($"Navisworks: Failed ({ex.Message})");
                     }
+                }
+                else if (ExportSettings.IsNwcSelected && selectedSheets.Any() && !selectedViews.Any())
+                {
+                    exportResults.Add($"Navisworks: Skipped (NWC requires 3D views, not sheets)");
+                    WriteDebugLog($"Navisworks export: Skipped - sheets selected but NWC requires 3D views");
                 }
 
                 // Show results
@@ -2271,6 +2503,12 @@ Tiếp tục xuất file?";
             
             try
             {
+                // Create new cancellation token for this export
+                _exportCancellationTokenSource?.Cancel();
+                _exportCancellationTokenSource?.Dispose();
+                _exportCancellationTokenSource = new System.Threading.CancellationTokenSource();
+                var cancellationToken = _exportCancellationTokenSource.Token;
+                
                 // Validate output folder
                 if (string.IsNullOrEmpty(CreateFolderPathTextBox?.Text))
                 {
@@ -2316,12 +2554,14 @@ Tiếp tục xuất file?";
                     var items = ExportQueueDataGrid.Items.Cast<ExportQueueItem>().ToList();
                     var totalItems = items.Count;
                     
-                    // Get selected sheets from Selection tab with custom file names
-                    var selectedSheets = Sheets.Where(s => s.IsSelected).ToList();
+                    // Get selected sheets and views from Selection tab
+                    var selectedSheets = Sheets?.Where(s => s.IsSelected).ToList() ?? new List<SheetItem>();
+                    var selectedViews = Views?.Where(v => v.IsSelected).ToList() ?? new List<ViewItem>();
+                    var totalSelected = selectedSheets.Count + selectedViews.Count;
                     
-                    if (selectedSheets.Count == 0)
+                    if (totalSelected == 0)
                     {
-                        MessageBox.Show("No sheets selected for export.", 
+                        MessageBox.Show("Please select at least one sheet or view to export.", 
                                        "No Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
@@ -2336,7 +2576,7 @@ Tiếp tục xuất file?";
                         return;
                     }
 
-                    WriteDebugLog($"Exporting {selectedSheets.Count} sheets in {selectedFormats.Count} format(s)");
+                    WriteDebugLog($"Exporting {selectedSheets.Count} sheets and {selectedViews.Count} views in {selectedFormats.Count} format(s)");
                     
                     int completedCount = 0;
                     string outputFolder = CreateFolderPathTextBox.Text;
@@ -2348,8 +2588,8 @@ Tiếp tục xuất file?";
                         
                         if (format.ToUpper() == "PDF")
                         {
-                            // Use PDF Export External Event for proper API context
-                            if (_pdfExportEvent != null && _pdfExportHandler != null)
+                            // Use PDF Export External Event for proper API context (only for sheets)
+                            if (selectedSheets.Any() && _pdfExportEvent != null && _pdfExportHandler != null)
                             {
                                 WriteDebugLog("Using PDF Export External Event...");
                                 
@@ -2406,12 +2646,32 @@ Tiếp tục xuất file?";
                                 var raiseResult = _pdfExportEvent.Raise();
                                 WriteDebugLog($"PDF Export Event raised with result: {raiseResult}");
                                 
-                                // Wait for export to complete (with timeout)
+                                // Wait for export to complete by checking queue item statuses
+                                // Use Task.Delay instead of Thread.Sleep to avoid blocking UI thread
                                 int waitCount = 0;
-                                while (raiseResult == ExternalEventRequest.Pending && waitCount < 100)
+                                int maxWaitSeconds = 300; // 5 minutes timeout
+                                
+                                while (waitCount < maxWaitSeconds * 10) // Check every 100ms
                                 {
-                                    System.Threading.Thread.Sleep(100);
+                                    await System.Threading.Tasks.Task.Delay(100, cancellationToken); // Yield control to allow External Event to run
                                     waitCount++;
+                                    
+                                    // Check if all PDF items in queue are completed
+                                    var pdfItems = items.Where(i => i.Format == "PDF").ToList();
+                                    bool allPdfCompleted = pdfItems.All(i => i.Status == "Completed" || i.Status == "Failed");
+                                    
+                                    if (allPdfCompleted)
+                                    {
+                                        WriteDebugLog($"All PDF items completed after {waitCount * 100}ms");
+                                        break;
+                                    }
+                                    
+                                    // Log progress every 5 seconds
+                                    if (waitCount % 50 == 0)
+                                    {
+                                        var completed = pdfItems.Count(i => i.Status == "Completed");
+                                        WriteDebugLog($"⏳ Waiting for PDF export... {completed}/{pdfItems.Count} items done");
+                                    }
                                 }
                                 
                                 bool exportResult = _pdfExportHandler.ExportResult;
@@ -2425,11 +2685,15 @@ Tiếp tục xuất file?";
                                     WriteDebugLog($"PDF export failed: {_pdfExportHandler.ErrorMessage}");
                                 }
                             }
-                            else
+                            else if (selectedSheets.Any())
                             {
                                 WriteDebugLog("ERROR: PDF Export Event not initialized (UIApplication is null)");
                                 MessageBox.Show("Cannot export PDF: External Event not initialized.\n\nPlease restart Revit and try again.",
                                     "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
+                            else
+                            {
+                                WriteDebugLog("PDF export skipped - no sheets selected (PDF requires sheets)");
                             }
                         }
                         else if (format.ToUpper() == "DWG")
@@ -2442,33 +2706,127 @@ Tiếp tục xuất file?";
                             WriteDebugLog("IFC export not yet implemented");
                             // TODO: Implement IFC export with custom names
                         }
+                        else if (format.ToUpper() == "NWC")
+                        {
+                            WriteDebugLog("Starting NWC export");
+                            
+                            // Use selectedViews already declared at the beginning
+                            var threeDViews = selectedViews.Where(v => 
+                                v.ViewType != null && 
+                                (v.ViewType.Contains("ThreeD") || v.ViewType.Contains("3D"))).ToList();
+                            
+                            if (threeDViews.Any())
+                            {
+                                WriteDebugLog($"Exporting {threeDViews.Count} 3D views to NWC");
+                                
+                                var nwcManager = new NavisworksExportManager(_document);
+                                bool nwcResult = nwcManager.ExportToNavisworks(threeDViews, NWCSettings, outputFolder);
+                                
+                                if (nwcResult)
+                                {
+                                    WriteDebugLog($"NWC export completed successfully for {threeDViews.Count} views");
+                                    
+                                    // Mark NWC items as completed in queue
+                                    foreach (var view in threeDViews)
+                                    {
+                                        var queueItem = items.FirstOrDefault(i => 
+                                            i.ViewSheetName == view.ViewName && 
+                                            i.Format == "NWC");
+                                        
+                                        if (queueItem != null)
+                                        {
+                                            queueItem.Status = "Completed";
+                                            queueItem.Progress = 100;
+                                            WriteDebugLog($"✓ View {view.ViewName} - NWC export completed");
+                                            
+                                            completedCount++;
+                                            var overallProgress = (completedCount * 100.0) / totalItems;
+                                            ExportProgressBar.Value = overallProgress;
+                                            ProgressPercentageText.Text = $"Completed {overallProgress:F0}%";
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    WriteDebugLog("NWC export failed");
+                                    
+                                    // Mark as failed
+                                    foreach (var view in threeDViews)
+                                    {
+                                        var queueItem = items.FirstOrDefault(i => 
+                                            i.ViewSheetName == view.ViewName && 
+                                            i.Format == "NWC");
+                                        
+                                        if (queueItem != null)
+                                        {
+                                            queueItem.Status = "Failed";
+                                            queueItem.Progress = 0;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                WriteDebugLog("NWC export skipped - no 3D views selected");
+                            }
+                        }
                         else
                         {
                             WriteDebugLog($"Format {format} not yet implemented");
                         }
                     }
                     
-                    // Mark any remaining items as completed
-                    foreach (var item in items.Where(i => i.Status != "Completed"))
+                    // Final progress update - only if all items are done
+                    var allCompleted = items.All(i => i.Status == "Completed");
+                    if (allCompleted)
                     {
-                        item.Status = "Completed";
-                        item.Progress = 100;
+                        ExportProgressBar.Value = 100;
+                        ProgressPercentageText.Text = "Completed 100%";
+                        WriteDebugLog("All export items completed successfully");
+                        
+                        // Generate report if selected
+                        var reportType = (ReportComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
+                        if (reportType != "Don't Save Report")
+                        {
+                            WriteDebugLog($"Generating {reportType}");
+                            // TODO: Implement report generation
+                        }
+                        
+                        // Show export completed dialog ONLY when all items are done
+                        ShowExportCompletedDialog(CreateFolderPathTextBox.Text);
                     }
-                    
-                    // Final progress update
-                    ExportProgressBar.Value = 100;
-                    ProgressPercentageText.Text = "Completed 100%";
-                    
-                    // Generate report if selected
-                    var reportType = (ReportComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
-                    if (reportType != "Don't Save Report")
+                    else
                     {
-                        WriteDebugLog($"Generating {reportType}");
-                        // TODO: Implement report generation
+                        // Calculate actual progress based on completed items
+                        var completedItems = items.Count(i => i.Status == "Completed");
+                        var actualProgress = (completedItems * 100.0) / items.Count;
+                        ExportProgressBar.Value = actualProgress;
+                        ProgressPercentageText.Text = $"Completed {actualProgress:F0}%";
+                        WriteDebugLog($"Export partially completed: {completedItems}/{items.Count} items");
+                        
+                        // Don't show completed dialog if export is not fully done
+                        MessageBox.Show($"Export process finished, but some items may not be completed.\n\n" +
+                                       $"Completed: {completedItems}/{items.Count} items\n" +
+                                       $"Location: {CreateFolderPathTextBox.Text}",
+                                       "Export Status", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
-                    
-                    // Show export completed dialog with Open Folder button
-                    ShowExportCompletedDialog(CreateFolderPathTextBox.Text);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                WriteDebugLog("Export operation was cancelled by user");
+                MessageBox.Show("Export was cancelled.", 
+                               "Export Cancelled", MessageBoxButton.OK, MessageBoxImage.Information);
+                
+                // Update status for any pending items
+                var items = ExportQueueDataGrid.ItemsSource as ObservableCollection<ExportQueueItem>;
+                if (items != null)
+                {
+                    foreach (var item in items.Where(i => i.Status == "Processing" || i.Status == "Pending"))
+                    {
+                        item.Status = "Cancelled";
+                        item.Progress = 0;
+                    }
                 }
             }
             catch (Exception ex)

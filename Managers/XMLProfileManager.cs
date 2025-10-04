@@ -431,12 +431,29 @@ namespace ProSheetsAddin.Managers
                 if (template.NWC != null)
                 {
                     WriteDebugLog("Applying NWC settings...");
+                    // Core settings
+                    setUIProperty("NWC_ConvertConstructionParts", template.NWC.ConvertConstructionParts);
+                    setUIProperty("NWC_ConvertElementIds", template.NWC.ConvertElementIds);
+                    setUIProperty("NWC_ConvertElementParameters", template.NWC.ConvertElementParameters);
                     setUIProperty("NWC_ConvertElementProperties", template.NWC.ConvertElementProperties);
+                    setUIProperty("NWC_ConvertLinkedFiles", template.NWC.ConvertLinkedFiles);
+                    setUIProperty("NWC_ConvertRoomAsAttribute", template.NWC.ConvertRoomAsAttribute);
+                    setUIProperty("NWC_ConvertURLs", template.NWC.ConvertURLs);
                     setUIProperty("NWC_Coordinates", template.NWC.Coordinates);
                     setUIProperty("NWC_DivideFileIntoLevels", template.NWC.DivideFileIntoLevels);
-                    setUIProperty("NWC_ExportElementIds", template.NWC.ExportElementIds);
-                    setUIProperty("NWC_ExportParts", template.NWC.ExportParts);
-                    setUIProperty("NWC_ExportRoomAsAttribute", template.NWC.ExportRoomAsAttribute);
+                    
+                    // New settings (added 2024)
+                    setUIProperty("NWC_EmbedTextures", template.NWC.EmbedTextures);
+                    setUIProperty("NWC_ExportScope", template.NWC.ExportScope);
+                    setUIProperty("NWC_SeparateCustomProperties", template.NWC.SeparateCustomProperties);
+                    setUIProperty("NWC_StrictSectioning", template.NWC.StrictSectioning);
+                    setUIProperty("NWC_TypePropertiesOnElements", template.NWC.TypePropertiesOnElements);
+                    
+                    // Additional settings
+                    setUIProperty("NWC_ExportRoomGeometry", template.NWC.ExportRoomGeometry);
+                    setUIProperty("NWC_TryAndFindMissingMaterials", template.NWC.TryAndFindMissingMaterials);
+                    setUIProperty("NWC_ConvertLinkedCADFormats", template.NWC.ConvertLinkedCADFormats);
+                    setUIProperty("NWC_ConvertLights", template.NWC.ConvertLights);
                     setUIProperty("NWC_FacetingFactor", template.NWC.FacetingFactor);
                 }
                 
