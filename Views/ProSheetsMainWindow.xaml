@@ -1275,37 +1275,49 @@
                                                     <!-- Current Setup -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                                         <TextBlock Text="Current Setup" VerticalAlignment="Center" Width="100" FontSize="13"/>
-                                                        <ComboBox x:Name="CurrentSetupComboIFC" Width="160" FontSize="13">
-                                                            <ComboBoxItem Content="&lt;In-Session Setup&gt;" IsSelected="True"/>
-                                                            <ComboBoxItem Content="Default"/>
-                                                        </ComboBox>
+                                                        <ComboBox x:Name="CurrentSetupComboIFC" Width="160" FontSize="13"
+                                                                  ItemsSource="{Binding IFCCurrentSetups}"
+                                                                  SelectedItem="{Binding SelectedIFCSetup, Mode=TwoWay}"/>
                                                     </StackPanel>
 
                                                     <!-- IFC Version -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                         <TextBlock Text="IFC Version" VerticalAlignment="Center" Width="100" FontSize="13"/>
-                                                        <ComboBox x:Name="IFCVersionComboIFC" Width="160" FontSize="13">
+                                                        <ComboBox x:Name="IFCVersionComboIFC" Width="160" FontSize="13"
+                                                                  SelectedValue="{Binding IFCSettings.IFCVersion, Mode=TwoWay}"
+                                                                  SelectedValuePath="Content">
                                                             <ComboBoxItem Content="IFC 2x3 Coordination View 2.0" IsSelected="True"/>
-                                                            <ComboBoxItem Content="IFC 4 Reference View"/>
                                                             <ComboBoxItem Content="IFC 2x3 Coordination View"/>
-                                                            <ComboBoxItem Content="IFC 4 Design Transfer View"/>
+                                                            <ComboBoxItem Content="IFC 2x2 Coordination View"/>
+                                                            <ComboBoxItem Content="IFC 2x3 GSA Concept Design BIM 2010"/>
+                                                            <ComboBoxItem Content="IFC 2x3 Basic FM Handover View"/>
+                                                            <ComboBoxItem Content="IFC 2x2 Singapore BCA e-Plan Check"/>
+                                                            <ComboBoxItem Content="IFC 2x3 COBie 2.4 Design Deliverable View"/>
+                                                            <ComboBoxItem Content="IFC4 Reference View"/>
+                                                            <ComboBoxItem Content="IFC4 Design Transfer View"/>
+                                                            <ComboBoxItem Content="IFC4 for General Use"/>
                                                         </ComboBox>
                                                     </StackPanel>
 
                                                     <!-- File Type -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                         <TextBlock Text="File Type" VerticalAlignment="Center" Width="100" FontSize="13"/>
-                                                        <ComboBox x:Name="IFCFileTypeComboIFC" Width="160" FontSize="13">
+                                                        <ComboBox x:Name="IFCFileTypeComboIFC" Width="160" FontSize="13"
+                                                                  SelectedValue="{Binding IFCSettings.FileType, Mode=TwoWay}"
+                                                                  SelectedValuePath="Content">
                                                             <ComboBoxItem Content="IFC" IsSelected="True"/>
-                                                            <ComboBoxItem Content="IFCZIP"/>
-                                                            <ComboBoxItem Content="IFCXML"/>
+                                                            <ComboBoxItem Content="IFC XML"/>
+                                                            <ComboBoxItem Content="Zipped IFC"/>
+                                                            <ComboBoxItem Content="Zipped IFC XML"/>
                                                         </ComboBox>
                                                     </StackPanel>
 
                                                     <!-- Phase to export -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                         <TextBlock Text="Phase to export" VerticalAlignment="Center" Width="100" FontSize="13"/>
-                                                        <ComboBox x:Name="IFCPhaseComboIFC" Width="160" FontSize="13">
+                                                        <ComboBox x:Name="IFCPhaseComboIFC" Width="160" FontSize="13"
+                                                                  SelectedValue="{Binding IFCSettings.PhaseToExport, Mode=TwoWay}"
+                                                                  SelectedValuePath="Content">
                                                             <ComboBoxItem Content="Default phase to export" IsSelected="True"/>
                                                             <ComboBoxItem Content="Existing"/>
                                                             <ComboBoxItem Content="New Construction"/>
@@ -1315,7 +1327,9 @@
                                                     <!-- Space boundaries -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                         <TextBlock Text="Space boundaries" VerticalAlignment="Center" Width="100" FontSize="13"/>
-                                                        <ComboBox x:Name="SpaceBoundariesComboIFC" Width="160" FontSize="13">
+                                                        <ComboBox x:Name="SpaceBoundariesComboIFC" Width="160" FontSize="13"
+                                                                  SelectedValue="{Binding IFCSettings.SpaceBoundaries, Mode=TwoWay}"
+                                                                  SelectedValuePath="Content">
                                                             <ComboBoxItem Content="None" IsSelected="True"/>
                                                             <ComboBoxItem Content="1st Level"/>
                                                             <ComboBoxItem Content="2nd Level"/>
@@ -1325,11 +1339,15 @@
                                                     <!-- Project Origin -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
                                                         <TextBlock Text="Project Origin" VerticalAlignment="Center" Width="100" FontSize="13"/>
-                                                        <ComboBox x:Name="ProjectOriginComboIFC" Width="160" FontSize="13">
-                                                            <ComboBoxItem Content="Shared Coordinates" IsSelected="True"/>
+                                                        <ComboBox x:Name="ProjectOriginComboIFC" Width="160" FontSize="13"
+                                                                  SelectedValue="{Binding IFCSettings.ProjectOrigin, Mode=TwoWay}"
+                                                                  SelectedValuePath="Content">
+                                                            <ComboBoxItem Content="Current Shared Coordinates" IsSelected="True"/>
                                                             <ComboBoxItem Content="Site Survey Point"/>
                                                             <ComboBoxItem Content="Project Base Point"/>
-                                                            <ComboBoxItem Content="Internal Origin"/>
+                                                            <ComboBoxItem Content="Internal Coordinates"/>
+                                                            <ComboBoxItem Content="Project Base Point oriented in True North"/>
+                                                            <ComboBoxItem Content="Internal Origin oriented in True North"/>
                                                         </ComboBox>
                                                     </StackPanel>
 
@@ -1374,10 +1392,13 @@
                                                 <StackPanel Margin="10">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="Detail Level" VerticalAlignment="Center" Width="90" FontSize="13"/>
-                                                        <ComboBox x:Name="DetailLevelComboIFC" Width="140" FontSize="13">
-                                                            <ComboBoxItem Content="Coarse"/>
+                                                        <ComboBox x:Name="DetailLevelComboIFC" Width="140" FontSize="13"
+                                                                  SelectedValue="{Binding IFCSettings.DetailLevel, Mode=TwoWay}"
+                                                                  SelectedValuePath="Content">
+                                                            <ComboBoxItem Content="Extra Low"/>
+                                                            <ComboBoxItem Content="Low"/>
                                                             <ComboBoxItem Content="Medium" IsSelected="True"/>
-                                                            <ComboBoxItem Content="Fine"/>
+                                                            <ComboBoxItem Content="High"/>
                                                         </ComboBox>
                                                     </StackPanel>
                                                 </StackPanel>
@@ -1460,9 +1481,36 @@
 
                                             <!-- Import/Export Settings -->
                                             <GroupBox Header="Import/Export Settings" BorderBrush="#E1E1E1" BorderThickness="1">
-                                                <StackPanel Margin="10" Orientation="Horizontal" HorizontalAlignment="Center">
-                                                    <Button Content="Import..." Width="100" Height="28" Margin="0,0,10,0" FontSize="13"/>
-                                                    <Button Content="Export..." Width="100" Height="28" FontSize="13"/>
+                                                <StackPanel Margin="10">
+                                                    <!-- Import Settings -->
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                        <TextBox x:Name="IFCImportPathTextBox" Width="150" Height="28" 
+                                                                 FontSize="13" VerticalContentAlignment="Center"
+                                                                 ToolTip="Path to IFC settings XML file to import"/>
+                                                        <Button x:Name="BrowseIFCImportButton" Content="..." Width="30" Height="28" 
+                                                                Margin="5,0,5,0" FontSize="13"
+                                                                utils:BrowseFileBehavior.TargetTextBoxName="IFCImportPathTextBox"
+                                                                utils:BrowseFileBehavior.DialogTitle="Select IFC Settings File to Import"
+                                                                utils:BrowseFileBehavior.FileFilter="XML Files (*.xml)|*.xml|All Files (*.*)|*.*"
+                                                                ToolTip="Browse for XML file"/>
+                                                        <Button x:Name="ImportIFCButton" Content="Import..." Width="60" Height="28" FontSize="13"
+                                                                ToolTip="Import IFC settings from XML file"/>
+                                                    </StackPanel>
+                                                    
+                                                    <!-- Export Settings -->
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBox x:Name="IFCExportPathTextBox" Width="150" Height="28" 
+                                                                 FontSize="13" VerticalContentAlignment="Center"
+                                                                 ToolTip="Path to save IFC settings XML file"/>
+                                                        <Button x:Name="BrowseIFCExportButton" Content="..." Width="30" Height="28" 
+                                                                Margin="5,0,5,0" FontSize="13"
+                                                                utils:BrowseFileBehavior.TargetTextBoxName="IFCExportPathTextBox"
+                                                                utils:BrowseFileBehavior.DialogTitle="Select Location to Save IFC Settings"
+                                                                utils:BrowseFileBehavior.FileFilter="XML Files (*.xml)|*.xml|All Files (*.*)|*.*"
+                                                                ToolTip="Browse for save location"/>
+                                                        <Button x:Name="ExportIFCButton" Content="Export..." Width="60" Height="28" FontSize="13"
+                                                                ToolTip="Export IFC settings to XML file"/>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </GroupBox>
                                         </StackPanel>

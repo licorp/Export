@@ -203,6 +203,77 @@ namespace ProSheetsAddin.Views
             }
         }
         
+        // IFC export settings
+        private IFCExportSettings _ifcSettings = new IFCExportSettings();
+        public IFCExportSettings IFCSettings
+        {
+            get => _ifcSettings;
+            set
+            {
+                _ifcSettings = value;
+                OnPropertyChanged(nameof(IFCSettings));
+            }
+        }
+        
+        // IFC Setup Profiles Collection
+        private ObservableCollection<string> _ifcCurrentSetups;
+        public ObservableCollection<string> IFCCurrentSetups
+        {
+            get => _ifcCurrentSetups;
+            set
+            {
+                _ifcCurrentSetups = value;
+                OnPropertyChanged(nameof(IFCCurrentSetups));
+            }
+        }
+        
+        // Selected IFC Setup
+        private string _selectedIFCSetup = "<In-Session Setup>";
+        public string SelectedIFCSetup
+        {
+            get => _selectedIFCSetup;
+            set
+            {
+                if (_selectedIFCSetup != value)
+                {
+                    _selectedIFCSetup = value;
+                    OnPropertyChanged(nameof(SelectedIFCSetup));
+                    
+                    // Auto-load IFC setup from Revit when user selects
+                    if (value != "<In-Session Setup>")
+                    {
+                        try
+                        {
+                            WriteDebugLog($"Loading IFC setup from Revit: {value}");
+                            var loadedSettings = IFCExportManager.LoadIFCSetupFromRevit(_document, value);
+                            
+                            // Apply loaded settings to current IFCSettings
+                            IFCSettings = loadedSettings;
+                            
+                            WriteDebugLog($"✓ IFC setup '{value}' loaded successfully");
+                            System.Windows.MessageBox.Show(
+                                $"IFC setup '{value}' loaded from Revit successfully!",
+                                "Setup Loaded",
+                                System.Windows.MessageBoxButton.OK,
+                                System.Windows.MessageBoxImage.Information);
+                        }
+                        catch (Exception ex)
+                        {
+                            WriteDebugLog($"✗ Error loading IFC setup: {ex.Message}");
+                            System.Windows.MessageBox.Show(
+                                $"Could not load setup '{value}' from Revit.\n\nError: {ex.Message}",
+                                "Setup Load Error",
+                                System.Windows.MessageBoxButton.OK,
+                                System.Windows.MessageBoxImage.Warning);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // IFC Setup Configuration Paths (mapping setup name to file path)
+        private Dictionary<string, string> _ifcSetupConfigPaths;
+        
         // Export Queue Items for Create tab
         private ObservableCollection<ExportQueueItem> _exportQueueItems;
         public ObservableCollection<ExportQueueItem> ExportQueueItems
@@ -245,6 +316,41 @@ namespace ProSheetsAddin.Views
             ExportSettings = new ExportSettings();
             WriteDebugLog("ExportSettings initialized");
             
+            // Initialize IFC Setup Profiles - Load from Revit dynamically
+            WriteDebugLog("=== ATTEMPTING TO LOAD IFC SETUPS FROM REVIT ===");
+            try
+            {
+                WriteDebugLog("Calling IFCExportManager.GetAvailableIFCSetups()...");
+                var availableSetups = IFCExportManager.GetAvailableIFCSetups(_document);
+                WriteDebugLog($"GetAvailableIFCSetups() returned {availableSetups.Count} setups");
+                IFCCurrentSetups = new ObservableCollection<string>(availableSetups);
+                SelectedIFCSetup = "<In-Session Setup>";
+                WriteDebugLog($"✓ IFC Setup Profiles loaded from Revit: {availableSetups.Count} setups found");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"✗ ERROR loading IFC setups from Revit: {ex.Message}");
+                WriteDebugLog($"   Stack Trace: {ex.StackTrace}");
+                // Fallback to hardcoded list
+                IFCCurrentSetups = new ObservableCollection<string>
+                {
+                    "<In-Session Setup>",
+                    "IFC 2x3 Coordination View 2.0",
+                    "IFC 2x3 Coordination View",
+                    "IFC 2x3 GSA Concept Design BIM 2010",
+                    "IFC 2x3 Basic FM Handover View",
+                    "IFC 2x2 Coordination View",
+                    "IFC 2x2 Singapore BCA e-Plan Check",
+                    "IFC 2x3 COBie 2.4 Design Deliverable View",
+                    "IFC4 Reference View [Architecture]",
+                    "IFC4 Reference View [Structural]",
+                    "IFC4 Reference View [BuildingService]",
+                    "IFC4 Design Transfer View",
+                    "Typical Setup"
+                };
+                SelectedIFCSetup = "<In-Session Setup>";
+            }
+            
             // Initialize output folder to Desktop
             OutputFolder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             WriteDebugLog($"Default output folder set to: {OutputFolder}");
@@ -256,9 +362,8 @@ namespace ProSheetsAddin.Views
             InitializeComponent();
             WriteDebugLog("InitializeComponent completed");
             
-            // TODO: Wire up Browse buttons for IFC Settings AFTER InitializeComponent
-            // WireUpIFCBrowseButtons();
-            // WriteDebugLog("IFC Browse buttons wired up");
+            // TODO: Wire up IFC Import/Export buttons after WPF build issues resolved
+            // WireUpIFCButtons();
             
             // Configure window for non-modal operation
             ConfigureNonModalWindow();
@@ -2004,7 +2109,7 @@ Tiếp tục xuất file?";
                 {
                     try
                     {
-                        var ifcManager = new IFCExportManager();
+                        var ifcManager = new IFCExportManager(_document);
                         var ifcSettings = new PSIFCExportSettings { OutputFolder = outputFolder };
                         
                         // IFC export typically uses 3D views
@@ -3958,6 +4063,315 @@ Tiếp tục xuất file?";
         }
 
         #endregion
+
+        // ===== IFC SETUP PROFILE MANAGEMENT TEMPORARILY DISABLED =====
+        // Reason: WPF temporary assembly build issue
+        // The complete profile management system (289 lines) is commented out below
+        // due to WPF _wpftmp.csproj compilation errors where temporary assembly
+        // cannot access ProSheetsXMLProfile properties and XMLProfileManager methods
+        // 
+        // SOLUTION OPTIONS:
+        // 1. Move to separate ProfileManagementHelper class
+        // 2. Implement using Commands/Behaviors pattern
+        // 3. Use conditional compilation (#if !XAML_COMPILATION)
+        
+        #region IFC Setup Profile Management (DISABLED - WPF Build Issue)
+
+        /*
+
+        /// <summary>
+        /// Initialize IFC Setup Profiles collection and configuration paths
+        /// </summary>
+        private void InitializeIFCSetups()
+        {
+            // Initialize IFC Setups Collection
+            IFCCurrentSetups = new ObservableCollection<string>
+            {
+                "<In-Session Setup>",
+                "IFC 2x3 Coordination View 2.0",
+                "IFC 2x3 Coordination View",
+                "IFC 2x3 GSA Concept Design BIM 2010",
+                "IFC 2x3 Basic FM Handover View",
+                "IFC 2x2 Coordination View",
+                "IFC 2x2 Singapore BCA e-Plan Check",
+                "IFC 2x3 COBie 2.4 Design Deliverable View",
+                "IFC4 Reference View",
+                "IFC4 Design Transfer View",
+                "Typical Setup"
+            };
+            
+            // Initialize configuration paths mapping
+            _ifcSetupConfigPaths = new Dictionary<string, string>();
+            
+            // Get IFC profiles directory (in %AppData%\ProSheets\IFCProfiles)
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string ifcProfilesDir = Path.Combine(appDataPath, "ProSheets", "IFCProfiles");
+            
+            // Create directory if not exists
+            try
+            {
+                if (!Directory.Exists(ifcProfilesDir))
+                {
+                    Directory.CreateDirectory(ifcProfilesDir);
+                    WriteDebugLog($"Created IFC profiles directory: {ifcProfilesDir}");
+                }
+                
+                // Map setup names to file paths
+                _ifcSetupConfigPaths["IFC 2x3 Coordination View 2.0"] = Path.Combine(ifcProfilesDir, "IFC_2x3_CV2.0.xml");
+                _ifcSetupConfigPaths["IFC 2x3 Coordination View"] = Path.Combine(ifcProfilesDir, "IFC_2x3_CV.xml");
+                _ifcSetupConfigPaths["IFC 2x3 GSA Concept Design BIM 2010"] = Path.Combine(ifcProfilesDir, "IFC_2x3_GSA.xml");
+                _ifcSetupConfigPaths["IFC 2x3 Basic FM Handover View"] = Path.Combine(ifcProfilesDir, "IFC_2x3_FM.xml");
+                _ifcSetupConfigPaths["IFC 2x2 Coordination View"] = Path.Combine(ifcProfilesDir, "IFC_2x2_CV.xml");
+                _ifcSetupConfigPaths["IFC 2x2 Singapore BCA e-Plan Check"] = Path.Combine(ifcProfilesDir, "IFC_2x2_SG_BCA.xml");
+                _ifcSetupConfigPaths["IFC 2x3 COBie 2.4 Design Deliverable View"] = Path.Combine(ifcProfilesDir, "IFC_2x3_COBie.xml");
+                _ifcSetupConfigPaths["IFC4 Reference View"] = Path.Combine(ifcProfilesDir, "IFC4_Reference.xml");
+                _ifcSetupConfigPaths["IFC4 Design Transfer View"] = Path.Combine(ifcProfilesDir, "IFC4_Design.xml");
+                _ifcSetupConfigPaths["Typical Setup"] = Path.Combine(ifcProfilesDir, "Typical_Setup.xml");
+                
+                WriteDebugLog($"IFC Setup profiles mapped to: {ifcProfilesDir}");
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR initializing IFC profiles directory: {ex.Message}");
+            }
+            
+            // Set default selected setup
+            SelectedIFCSetup = "<In-Session Setup>";
+        }
+
+        /// <summary>
+        /// Handle IFC Setup selection changed
+        /// </summary>
+        private void OnIFCSetupChanged()
+        {
+            try
+            {
+                WriteDebugLog($"IFC Setup changed to: {SelectedIFCSetup}");
+                
+                // If In-Session, keep current settings
+                if (SelectedIFCSetup == "<In-Session Setup>")
+                {
+                    WriteDebugLog("Using In-Session setup - keeping current settings");
+                    return;
+                }
+                
+                // Try to load setup from file
+                if (_ifcSetupConfigPaths != null && 
+                    _ifcSetupConfigPaths.TryGetValue(SelectedIFCSetup, out string filePath))
+                {
+                    if (File.Exists(filePath))
+                    {
+                        WriteDebugLog($"Loading IFC setup from: {filePath}");
+                        ApplyIFCSettingsFromFile(filePath);
+                    }
+                    else
+                    {
+                        WriteDebugLog($"IFC setup file not found: {filePath} - creating default");
+                        CreateDefaultIFCSetup(SelectedIFCSetup, filePath);
+                    }
+                }
+                else
+                {
+                    WriteDebugLog($"No file path mapping for setup: {SelectedIFCSetup}");
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR in OnIFCSetupChanged: {ex.Message}");
+                MessageBox.Show($"Error loading IFC setup: {ex.Message}", 
+                                "Setup Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Apply IFC settings from XML file
+        /// </summary>
+        private void ApplyIFCSettingsFromFile(string filePath)
+        {
+            try
+            {
+                var profileManager = new XMLProfileManager();
+                var profile = profileManager.ImportProfile(filePath);
+                
+                if (profile != null && profile.IFCSettings != null)
+                {
+                    // Apply settings to current IFCSettings
+                    IFCSettings = profile.IFCSettings;
+                    
+                    WriteDebugLog($"IFC settings applied from: {filePath}");
+                    
+                    // Show success message
+                    MessageBox.Show($"IFC setup '{SelectedIFCSetup}' loaded successfully!", 
+                                    "Setup Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    WriteDebugLog($"Failed to load IFC settings from: {filePath}");
+                    MessageBox.Show("Failed to load IFC setup configuration.", 
+                                    "Load Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR applying IFC settings from file: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Create default IFC setup configuration file
+        /// </summary>
+        private void CreateDefaultIFCSetup(string setupName, string filePath)
+        {
+            try
+            {
+                // Create default settings based on setup name
+                var defaultSettings = new IFCExportSettings();
+                
+                // Configure settings based on setup type
+                switch (setupName)
+                {
+                    case "IFC 2x3 Coordination View 2.0":
+                        defaultSettings.IFCVersion = "IFC 2x3 Coordination View 2.0";
+                        defaultSettings.ExportBaseQuantities = false;
+                        break;
+                        
+                    case "IFC 2x3 Coordination View":
+                        defaultSettings.IFCVersion = "IFC 2x3 Coordination View";
+                        defaultSettings.ExportBaseQuantities = false;
+                        break;
+                        
+                    case "IFC 2x3 GSA Concept Design BIM 2010":
+                        defaultSettings.IFCVersion = "IFC 2x3 GSA Concept Design BIM 2010";
+                        defaultSettings.ExportBaseQuantities = true;
+                        break;
+                        
+                    case "IFC 2x3 Basic FM Handover View":
+                        defaultSettings.IFCVersion = "IFC 2x3 Basic FM Handover View";
+                        defaultSettings.ExportBaseQuantities = true;
+                        defaultSettings.SpaceBoundaries = "1st Level";
+                        break;
+                        
+                    case "IFC 2x2 Coordination View":
+                        defaultSettings.IFCVersion = "IFC 2x2 Coordination View";
+                        defaultSettings.ExportBaseQuantities = false;
+                        break;
+                        
+                    case "IFC 2x2 Singapore BCA e-Plan Check":
+                        defaultSettings.IFCVersion = "IFC 2x2 Singapore BCA e-Plan Check";
+                        defaultSettings.ExportBaseQuantities = true;
+                        break;
+                        
+                    case "IFC 2x3 COBie 2.4 Design Deliverable View":
+                        defaultSettings.IFCVersion = "IFC 2x3 COBie 2.4 Design Deliverable View";
+                        defaultSettings.ExportBaseQuantities = true;
+                        defaultSettings.SpaceBoundaries = "2nd Level";
+                        break;
+                        
+                    case "IFC4 Reference View":
+                        defaultSettings.IFCVersion = "IFC4 Reference View";
+                        defaultSettings.ExportBaseQuantities = false;
+                        break;
+                        
+                    case "IFC4 Design Transfer View":
+                        defaultSettings.IFCVersion = "IFC4 Design Transfer View";
+                        defaultSettings.ExportBaseQuantities = true;
+                        break;
+                        
+                    case "Typical Setup":
+                        defaultSettings.IFCVersion = "IFC 2x3 Coordination View 2.0";
+                        defaultSettings.ExportBaseQuantities = false;
+                        defaultSettings.DetailLevel = "Medium";
+                        break;
+                }
+                
+                // Create profile
+                var profile = new ProSheetsXMLProfile
+                {
+                    ProfileName = setupName,
+                    CreatedDate = DateTime.Now,
+                    IFCSettings = defaultSettings
+                };
+                
+                // Save to file
+                var profileManager = new XMLProfileManager();
+                bool success = profileManager.ExportProfile(profile, filePath);
+                
+                if (success)
+                {
+                    WriteDebugLog($"Created default IFC setup: {filePath}");
+                    
+                    // Apply the settings
+                    IFCSettings = defaultSettings;
+                }
+                else
+                {
+                    WriteDebugLog($"Failed to create default IFC setup: {filePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR creating default IFC setup: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Save current IFC settings to selected setup
+        /// </summary>
+        public void SaveCurrentIFCSetup()
+        {
+            try
+            {
+                if (SelectedIFCSetup == "<In-Session Setup>")
+                {
+                    MessageBox.Show("Cannot save to In-Session setup. Please select or create a named setup.", 
+                                    "Save Setup", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                
+                if (_ifcSetupConfigPaths.TryGetValue(SelectedIFCSetup, out string filePath))
+                {
+                    // Create profile with current settings
+                    var profile = new ProSheetsXMLProfile
+                    {
+                        ProfileName = SelectedIFCSetup,
+                        CreatedDate = DateTime.Now,
+                        IFCSettings = IFCSettings
+                    };
+                    
+                    // Save to file
+                    var profileManager = new XMLProfileManager();
+                    bool success = profileManager.ExportProfile(profile, filePath);
+                    
+                    if (success)
+                    {
+                        WriteDebugLog($"Saved IFC setup to: {filePath}");
+                        MessageBox.Show($"IFC setup '{SelectedIFCSetup}' saved successfully!", 
+                                        "Setup Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Failed to save IFC setup.", 
+                                        "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteDebugLog($"ERROR saving IFC setup: {ex.Message}");
+                MessageBox.Show($"Error saving IFC setup: {ex.Message}", 
+                                "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        */
+
+        #endregion
+
+        // ===== IFC SETTINGS IMPORT/EXPORT TEMPORARILY DISABLED =====
+        // Reason: WPF temporary assembly build issue
+        // Code available in version control - will be re-enabled after WPF build fix
+        // Browse functionality works via BrowseFileBehavior attached property
 
         #region IFC Settings Event Handlers (DISABLED - WPF Build Issue)
 

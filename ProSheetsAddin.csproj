@@ -75,6 +75,7 @@
     <Compile Include="Models\ProSheetsProfile.cs" />
     <Compile Include="Models\ViewSheetSetInfo.cs" />
     <Compile Include="Models\NWCExportSettings.cs" />
+    <Compile Include="Models\IFCExportSettings.cs" />
     <Compile Include="Managers\XMLProfileManager.cs" />
     <Compile Include="Views\Converters.cs" />
     <Compile Include="Converters\UIConverters.cs" />
